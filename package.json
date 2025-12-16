@@ -5,13 +5,14 @@
   "author": "shafayat",
   "license": "MIT",
   "prisma": {
-  "schema": "prisma/schema"
-},
+    "schema": "prisma/schema"
+  },
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only ./src/server.ts"
   },
   "dependencies": {
     "@prisma/client": "^7.1.0",
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^17.2.2",
     "express": "^5.1.0",
