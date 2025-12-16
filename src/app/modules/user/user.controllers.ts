@@ -12,7 +12,7 @@ const createPatientController = catchAsync(async(req : Request,res:Response)=>{
         success : true,
         message : "Patient created successfully",        
         data : patient
-     })
+     });
 });
 
 export const userControllers ={
