@@ -15,8 +15,6 @@ model User {
   @@map("users")
 }
 
-
-
 model Admin {
   id            String   @id @default(uuid())
   name          String
@@ -53,8 +51,6 @@ model Doctor {
 
   @@map("doctors")
 }
-
-
 
 model Patient {
   id            String   @id @default(uuid())
