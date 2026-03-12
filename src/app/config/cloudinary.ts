@@ -1,13 +1,13 @@
 import { v2 as cloudinary, UploadApiResponse } from "cloudinary";
-import config from ".";
 import AppError from "../errorHelpers/appError";
-import httpStatusCode from "http-status-codes";
+import httpStatus from "http-status";
 import stream from "stream";
+import { envVars } from ".";
 
 cloudinary.config({
-  cloud_name: config.CLOUD_NAME,
-  api_key: config.CLOUD_API_KEY,
-  api_secret: config.CLOUD_API_SECRET,
+  cloud_name: envVars.CLOUD_NAME,
+  api_key: envVars.CLOUD_API_KEY,
+  api_secret: envVars.CLOUD_API_SECRET,
 });
 
 export const deleteCloudinaryImage = async (url: string) => {
@@ -25,7 +25,7 @@ export const deleteCloudinaryImage = async (url: string) => {
       console.log("cloudinary result : ", result);
     }
   } catch (err: any) {
-    throw new AppError(httpStatusCode.BAD_REQUEST, err.message);
+    throw new AppError(httpStatus.BAD_REQUEST, err.message);
   }
 };
 
