@@ -3,7 +3,7 @@ import { prisma } from "../../shared/prisma";
 import { IPatient } from "./user.interfaces";
 import bcrypt from "bcryptjs";
 
-const createPatientService = async (payload: IPatient) => {
+const createPatientService = async (payload: IPatient) => { 
   const password = await bcrypt.hash(
     payload.password as string,
     Number(envVars.BCRYPT_SALT),

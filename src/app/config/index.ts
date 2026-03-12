@@ -8,6 +8,10 @@ interface EnvConfig {
   CLOUD_NAME: string;
   CLOUD_API_KEY: string;
   CLOUD_API_SECRET: string;
+  JWT_ACCESS_TOKEN_SECRET: string;
+  JWT_ACCESS_TOKEN_EXPIRESIN: string;
+  JWT_REFRESH_TOKEN_SECRET: string;
+  JWT_REFRESH_TOKEN_EXPIRESIN: string;
 }
 
 const loadEnvVariables = (): EnvConfig => {
@@ -19,6 +23,10 @@ const loadEnvVariables = (): EnvConfig => {
     "CLOUD_NAME",
     "CLOUD_API_KEY",
     "CLOUD_API_SECRET",
+    "JWT_ACCESS_TOKEN_SECRET",
+    "JWT_ACCESS_TOKEN_EXPIRESIN",
+    "JWT_REFRESH_TOKEN_SECRET",
+    "JWT_REFRESH_TOKEN_EXPIRESIN",
   ];
 
   requiredEnvVariables.forEach((key) => {
@@ -35,6 +43,12 @@ const loadEnvVariables = (): EnvConfig => {
     CLOUD_NAME: process.env.CLOUD_NAME as string,
     CLOUD_API_KEY: process.env.CLOUD_API_KEY as string,
     CLOUD_API_SECRET: process.env.CLOUD_API_SECRET as string,
+    JWT_ACCESS_TOKEN_SECRET: process.env.JWT_ACCESS_TOKEN_SECRET as string,
+    JWT_ACCESS_TOKEN_EXPIRESIN: process.env
+      .JWT_ACCESS_TOKEN_EXPIRESIN as string,
+    JWT_REFRESH_TOKEN_SECRET: process.env.JWT_REFRESH_TOKEN_SECRET as string,
+    JWT_REFRESH_TOKEN_EXPIRESIN: process.env
+      .JWT_REFRESH_TOKEN_EXPIRESIN as string,
   };
 };
 

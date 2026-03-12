@@ -5,6 +5,7 @@ model User {
   role               UserRole   @default(PATIENT)
   needPasswordChange Boolean    @default(true)
   status             UserStatus @default(ACTIVE)
+  isVerified         Boolean    @default(false)
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
 
@@ -20,8 +21,7 @@ model Admin {
   name          String
   email         String   @unique
   profilePhoto  String?
-  contactNumber String
-  isDeleted     Boolean  @default(false)
+  contactNumber String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -43,7 +43,6 @@ model Doctor {
   currentWorkingPlace String
   designation         String
   qualification       String
-  isDeleted           Boolean  @default(false)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
@@ -59,7 +58,6 @@ model Patient {
   profilePhoto  String?
   contactNumber String?
   address       String?
-  isDeleted     Boolean  @default(false)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
