@@ -16,7 +16,7 @@ const loginService = async (payload: { email: string; password: string }) => {
   if (!user) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
-      `User is not found`,
+      "Invalid credentials",
       CUSTOM_ERROR.USER_NOT_FOUND,
     );
   }
@@ -42,7 +42,7 @@ const loginService = async (payload: { email: string; password: string }) => {
     user.password,
   );
   if (!isCorrectPassword) {
-    throw new AppError(httpStatus.BAD_REQUEST, "Incorrect password");
+    throw new AppError(httpStatus.BAD_REQUEST, "Invalid credentials");
   }
 
   const tokenPayload = {

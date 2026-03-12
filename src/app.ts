@@ -1,9 +1,10 @@
 import express, { Application, NextFunction, Request, Response } from 'express';
 import cors from 'cors';
+import cookieParser from "cookie-parser";
 import globalErrorHandler from './app/middlewares/globalErrorHandler';
-import notFound from './app/middlewares/notFound';
-import config from './app/config';
+import notFound from './app/middlewares/notFound'; 
 import router from './app/routes';
+import { envVars } from './app/config';
 
 const app: Application = express();
 app.use(cors({
@@ -12,6 +13,7 @@ app.use(cors({
 }));
 
 //parser
+app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -20,7 +22,7 @@ app.use('/api/v1',router)
 app.get('/', (req: Request, res: Response) => {
     res.send({
         Message: "Server is running..",
-        environment : config.node_env,
+        environment : envVars.NODE_ENV,
         uptime : process.uptime().toFixed() + ' sec'
     })
 });
