@@ -3,6 +3,7 @@ import { envVars } from "../../config";
 import { prisma } from "../../shared/prisma";
 import { IDoctor, IPatient } from "./user.interfaces";
 import bcrypt from "bcryptjs";
+import QueryBuilder from "../../utils/queryBuilder";
 
 const createPatientService = async (payload: IPatient) => {
   const password = await bcrypt.hash(
@@ -42,7 +43,17 @@ const createDoctorService = async (payload: IDoctor) => {
       },
     });
     return await tnx.doctor.create({
-      data: payload,
+      data: {
+        name: payload.name,
+        email: payload.email,
+        contactNumber: payload.contactNumber,
+        address: payload.address,
+        gender: payload.gender,
+        appointmentFee: payload.appointmentFee,
+        currentWorkingPlace: payload.currentWorkingPlace,
+        designation: payload.designation,
+        qualification: payload.qualification,
+      },
     });
   });
 
@@ -73,8 +84,34 @@ const createAdminService = async (payload: IPatient) => {
   return newAdmin;
 };
 
+const getAllUserService = async (query: Record<string, any>) => {
+  const queryBuilder = new QueryBuilder(query)
+    .search(["email"])
+    .filter()
+    .sort()
+    .pagination()
+    .build();
+
+  const users = await prisma.user.findMany({
+    ...queryBuilder,
+    select: {
+      id: true,
+      email: true,
+      role: true,
+      needPasswordChange: true,
+      status: true,
+      isVerified: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  });
+
+  return users;
+};
+
 export const userServices = {
   createPatientService,
   createDoctorService,
   createAdminService,
+  getAllUserService,
 };

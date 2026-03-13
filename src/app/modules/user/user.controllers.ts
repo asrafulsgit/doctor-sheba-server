@@ -40,8 +40,21 @@ const createAdminController = catchAsync(
   },
 );
 
+const getAllUserController = catchAsync(
+  async (req: Request, res: Response) => {
+    const result = await userServices.getAllUserService(req.query);
+    sendResponse(res, {
+      statusCode: httpStatus.CREATED,
+      success: true,
+      message: "Users retrieved successfully",
+      data: result,
+    });
+  },
+);
+
 export const userControllers = {
   createPatientController,
   createDoctorController,
-  createAdminController
+  createAdminController,
+  getAllUserController
 };
