@@ -26,6 +26,8 @@ class QueryBuilder {
       "searchTerm",
       "sortBy",
       "sortOrder",
+      "startDate",
+      "endDate",
       "page",
       "limit",
     ];

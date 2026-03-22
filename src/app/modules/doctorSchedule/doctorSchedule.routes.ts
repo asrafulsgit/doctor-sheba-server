@@ -1,0 +1,38 @@
+import { Router } from "express"; 
+import { authentication } from "../../middlewares/authentication";
+import { UserRole } from "@prisma/client"; 
+import { doctorScheduleControllers } from "./doctorSchedule.controllers";
+
+const router = Router();
+
+// get doctor available schedules
+router.get(
+  "/",
+  authentication(UserRole.DOCTOR),
+  doctorScheduleControllers.getDoctorAvailableSchedulesController
+);
+
+// get doctor schedules
+router.get(
+    '/my-schedule',
+    authentication(UserRole.DOCTOR),
+    doctorScheduleControllers.getDoctorSchedulesController
+)
+
+
+// create doctor schedules
+router.post(
+  "/",
+  authentication(UserRole.DOCTOR), 
+  doctorScheduleControllers.createDoctorScheduleController,
+);
+
+// delete doctor schedule
+router.delete(
+    '/:id',
+    authentication(UserRole.DOCTOR),
+    doctorScheduleControllers.deleteDoctorScheduleController
+);
+
+
+export const doctorScheduleRouter = router;
