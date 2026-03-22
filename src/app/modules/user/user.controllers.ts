@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import catchAsync from "../../shared/catchAsync";
 import { userServices } from "./user.services";
 import sendResponse from "../../shared/sendResponse";
-import httpStatus from "http-status"; 
+import httpStatus from "http-status";
 
 const createPatientController = catchAsync(
   async (req: Request, res: Response) => {
@@ -40,21 +40,20 @@ const createAdminController = catchAsync(
   },
 );
 
-const getAllUserController = catchAsync(
-  async (req: Request, res: Response) => {
-    const result = await userServices.getAllUserService(req.query);
-    sendResponse(res, {
-      statusCode: httpStatus.CREATED,
-      success: true,
-      message: "Users retrieved successfully",
-      data: result,
-    });
-  },
-);
+const getAllUserController = catchAsync(async (req: Request, res: Response) => {
+  const result = await userServices.getAllUserService(req.query);
+  sendResponse(res, {
+    statusCode: httpStatus.CREATED,
+    success: true,
+    message: "Users retrieved successfully",
+    data: result.data,
+    meta: result.meta,
+  });
+});
 
 export const userControllers = {
   createPatientController,
   createDoctorController,
   createAdminController,
-  getAllUserController
+  getAllUserController,
 };

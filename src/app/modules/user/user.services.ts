@@ -85,7 +85,7 @@ const createAdminService = async (payload: IPatient) => {
 };
 
 const getAllUserService = async (query: Record<string, any>) => {
-  const queryBuilder = new QueryBuilder(query)
+  const { where, ...rest } = new QueryBuilder(query)
     .search(["email"])
     .filter()
     .sort()
@@ -93,7 +93,8 @@ const getAllUserService = async (query: Record<string, any>) => {
     .build();
 
   const users = await prisma.user.findMany({
-    ...queryBuilder,
+    where,
+    ...rest,
     select: {
       id: true,
       email: true,
@@ -106,7 +107,17 @@ const getAllUserService = async (query: Record<string, any>) => {
     },
   });
 
-  return users;
+  const total = await prisma.user.count({ where });
+  const limit = Number(query.limit) || 10;
+  return {
+    meta: {
+      total,
+      page: Number(query.page) || 1,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    },
+    data: users,
+  };
 };
 
 export const userServices = {
