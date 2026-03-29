@@ -27,7 +27,10 @@ class QueryBuilder {
       "sortBy",
       "sortOrder",
       "startDate",
+      "specialty",
       "endDate",
+      "maxFee",
+      "minFee",
       "page",
       "limit",
     ];
@@ -74,7 +77,7 @@ class QueryBuilder {
   build() {
     return {
       where: this.query,
-      ...this.options,
+      options : this.options,
     };
   }
 }

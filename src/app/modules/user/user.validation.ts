@@ -28,6 +28,7 @@ const createDoctorValidationSchema = z.object({
     currentWorkingPlace: z.string().min(2, "Current working place is required"),
     designation: z.string().min(2, "Designation is required"),
     qualification: z.string().min(2, "Qualification is required"),
+    specialties: z.array(z.string()).optional(),
   }),
 });
 

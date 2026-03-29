@@ -4,18 +4,19 @@ export interface IPatient {
   name: string;
   email: string;
   password?: string;
-} 
+}
 
 export interface IDoctor {
   name: string;
   email: string;
-  password : string;
+  password: string;
   contactNumber: string;
   address: string;
-  experience?: number;  
+  experience?: number;
   gender: Gender;
   appointmentFee: number;
   currentWorkingPlace: string;
   designation: string;
   qualification: string;
+  specialties?: string[];
 }

@@ -42,7 +42,7 @@ const createDoctorService = async (payload: IDoctor) => {
         role: UserRole.DOCTOR,
       },
     });
-    return await tnx.doctor.create({
+    const doctor = await tnx.doctor.create({
       data: {
         name: payload.name,
         email: payload.email,
@@ -55,6 +55,19 @@ const createDoctorService = async (payload: IDoctor) => {
         qualification: payload.qualification,
       },
     });
+
+    if (payload.specialties?.length) {
+      const doctorSpecialitiesData = payload.specialties.map((specialtyId) => ({
+        doctorId: doctor.id,
+        specialitiesId: specialtyId,
+      }));
+
+      await tnx.doctorSpecialities.createMany({
+        data: doctorSpecialitiesData,
+      });
+    }
+
+    return doctor;
   });
 
   return newDoctor;
@@ -85,7 +98,7 @@ const createAdminService = async (payload: IPatient) => {
 };
 
 const getAllUserService = async (query: Record<string, any>) => {
-  const { where, ...rest } = new QueryBuilder(query)
+  const { where, options } = new QueryBuilder(query)
     .search(["email"])
     .filter()
     .sort()
@@ -94,7 +107,7 @@ const getAllUserService = async (query: Record<string, any>) => {
 
   const users = await prisma.user.findMany({
     where,
-    ...rest,
+    ...options,
     select: {
       id: true,
       email: true,
