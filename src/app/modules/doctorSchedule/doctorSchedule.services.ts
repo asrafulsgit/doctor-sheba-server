@@ -11,14 +11,32 @@ const createDoctorScheduleService = async (
   },
 ) => {
   const schedules = payload.schedules;
-  const doctorData = await prisma.doctor.findUnique({
+
+  const doctorData = await prisma.doctor.findUniqueOrThrow({
     where: {
       email,
     },
   });
-  if (!doctorData) {
-    throw new AppError(httpStatus.NOT_FOUND, "Doctor not found");
+  
+  const scheduleRecords = await prisma.schedule.findMany({
+    where: {
+      id: { in: schedules },
+    },
+  });
+
+  const now = new Date();
+
+  const pastSchedule = scheduleRecords.find(
+    (schedule) => schedule.startDateTime < now,
+  );
+
+  if (pastSchedule) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      "Cannot assign past schedules to doctor",
+    );
   }
+
   const scheduleData = schedules.map((schedule) => ({
     doctorId: doctorData.id,
     scheduleId: schedule,
@@ -98,7 +116,7 @@ const getDoctorAvailableSchedulesService = async (
 };
 
 const getDoctorSchedulesService = async (
-  email: string,
+  id: string,
   query: Record<string, any>,
 ) => {
   const { startDate, endDate, page, limit } = query;
@@ -129,19 +147,18 @@ const getDoctorSchedulesService = async (
   const doctorSchedules = await prisma.doctorSchedules.findMany({
     where: {
       ...where,
-      doctor: {
-        email,
-      },
+      doctorId: id,
     },
     ...queryBuilder.options,
+    include: {
+      schedule: true,
+    },
   });
 
   const total = await prisma.doctorSchedules.count({
     where: {
       ...where,
-      doctor: {
-        email,
-      },
+      doctorId: id,
     },
   });
 

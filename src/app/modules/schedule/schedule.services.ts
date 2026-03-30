@@ -67,13 +67,12 @@ const getSchedulesService = async (query: Record<string, any>) => {
   const queryBuilder = new QueryBuilder(query).sort().pagination().build();
 
   const where: any = { ...queryBuilder.where };
+  const defaultStartDate = startDate ? new Date(startDate) : new Date();
 
-  if (startDate || endDate) {
+  if (defaultStartDate || endDate) {
     where.startDateTime = {};
 
-    if (startDate) {
-      where.startDateTime.gte = new Date(startDate);
-    }
+    where.startDateTime.gte = defaultStartDate;
 
     if (endDate) {
       const end = new Date(endDate);
@@ -83,8 +82,10 @@ const getSchedulesService = async (query: Record<string, any>) => {
   }
 
   const schedules = await prisma.schedule.findMany({
-    where,
-    ...queryBuilder,
+    where: {
+      ...where,
+    },
+    ...queryBuilder.options,
   });
 
   const total = await prisma.schedule.count({

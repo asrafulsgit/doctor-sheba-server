@@ -13,6 +13,8 @@ interface EnvConfig {
   JWT_REFRESH_TOKEN_SECRET: string;
   JWT_REFRESH_TOKEN_EXPIRESIN: string;
   OPEN_AI_API_KEY: string;
+  STRIPE_SECRET_KEY: string;
+  STRIPE_WEBHOOK_SECRET: string;
 }
 
 const loadEnvVariables = (): EnvConfig => {
@@ -29,6 +31,8 @@ const loadEnvVariables = (): EnvConfig => {
     "JWT_REFRESH_TOKEN_SECRET",
     "JWT_REFRESH_TOKEN_EXPIRESIN",
     "OPEN_AI_API_KEY",
+    "STRIPE_SECRET_KEY",
+    "STRIPE_WEBHOOK_SECRET",
   ];
 
   requiredEnvVariables.forEach((key) => {
@@ -52,6 +56,8 @@ const loadEnvVariables = (): EnvConfig => {
     JWT_REFRESH_TOKEN_EXPIRESIN: process.env
       .JWT_REFRESH_TOKEN_EXPIRESIN as string,
     OPEN_AI_API_KEY: process.env.OPEN_AI_API_KEY as string,
+    STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY as string,
+    STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET as string,
   };
 };
 

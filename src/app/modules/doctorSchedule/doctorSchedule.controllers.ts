@@ -37,16 +37,16 @@ const getDoctorAvailableSchedulesController = catchAsync(
 
 const getDoctorSchedulesController = catchAsync(
   async (req: Request, res: Response) => {
-    const email = req.user.email as string;
+    const id = req.params.id as string;
     const result = await doctorScheduleServices.getDoctorSchedulesService(
-      email,
+      id,
       req.query,
     );
 
     sendResponse(res, {
       statusCode: httpStatus.OK,
       success: true,
-      message: "My Schedule fetched successfully!",
+      message: "Doctor schedules fetched successfully!",
       data: result,
     });
   },

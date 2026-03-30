@@ -16,13 +16,13 @@ export const handlePrismaError = (
   // Unique constraint failed
   if (err.code === "P2002") {
     statusCode = httpStatus.CONFLICT;
-    message = "Duplicate resource";
+    message = `${err?.meta?.modelName || "resource"} already exist`;
   }
 
   // Record not found
   if (err.code === "P2025") {
     statusCode = httpStatus.NOT_FOUND;
-    message = "Resource not found";
+    message = `${err?.meta?.modelName || "Resource"} not found`;
   }
 
   // Foreign key constraint
