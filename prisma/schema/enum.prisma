@@ -14,3 +14,15 @@ enum UserRole {
   DOCTOR
   ADMIN
 }
+
+enum AppointmentStatus {
+  SCHEDULED
+  INPROGRESS
+  COMPLETED
+  CANCELED
+}
+
+enum PaymentStatus {
+  PAID
+  UNPAID
+}
