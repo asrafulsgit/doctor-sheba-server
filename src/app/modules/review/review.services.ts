@@ -6,52 +6,72 @@ import httpStatus from "http-status";
 import { AppointmentStatus, PaymentStatus, UserRole } from "@prisma/client";
 import { JwtPayload } from "jsonwebtoken";
 
-const createPrescriptionService = async (
-  email: string,
+const createReviewService = async (
+  user: JwtPayload,
   payload: {
     appointmentId: string;
-    instructions: string;
-    followUpDate: string | Date;
+    rating: number;
+    comment: string;
   },
 ) => {
-  const appointment = await prisma.appointment.findUniqueOrThrow({
+  const patientData = await prisma.patient.findUniqueOrThrow({
+    where: {
+      email: user?.email,
+    },
+  });
+
+  const appointmentData = await prisma.appointment.findUniqueOrThrow({
     where: {
       id: payload.appointmentId,
     },
-    include: {
-      doctor: true,
-      patient: true,
-    },
   });
 
-  if (appointment.status !== AppointmentStatus.INPROGRESS) {
+  if (appointmentData.paymentStatus !== PaymentStatus.PAID) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
-      "Appointment must be inprogress before creating prescription",
+      "Payment must be completed before submitting a review",
     );
   }
-  if (appointment.paymentStatus !== PaymentStatus.PAID) {
+  if (appointmentData.status !== AppointmentStatus.COMPLETED) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
-      "Appointment fee is not paid yet",
+      "Appointment must be completed before submitting a review",
     );
   }
 
-  if (!(email === appointment.doctor.email)) {
-    throw new AppError(httpStatus.BAD_REQUEST, "This is not your appointment");
+  if (!(patientData.id === appointmentData.patientId)) {
+    throw new AppError(httpStatus.BAD_REQUEST, "This is not your appointment!");
   }
 
-  const prescription = await prisma.prescription.create({
-    data: {
-      appointmentId: appointment.id,
-      doctorId: appointment.doctor.id,
-      patientId: appointment.patient.id,
-      instructions: payload.instructions,
-      followUpDate: payload.followUpDate,
-    },
-  });
+  return await prisma.$transaction(async (tx) => {
+    const result = await tx.review.create({
+      data: {
+        appointmentId: appointmentData.id,
+        doctorId: appointmentData.doctorId,
+        patientId: appointmentData.patientId,
+        rating: payload.rating,
+        comment: payload.comment,
+      },
+    });
 
-  return prescription;
+    const averageRating = await tx.review.aggregate({
+      where: { doctorId: result.doctorId },
+      _avg: {
+        rating: true,
+      },
+    });
+
+    await tx.doctor.update({
+      where: {
+        id: result.doctorId,
+      },
+      data: {
+        averageRating: averageRating._avg.rating as number,
+      },
+    });
+
+    return result;
+  });
 };
 
 const getMyPrescriptionsService = async (
@@ -82,7 +102,7 @@ const getMyPrescriptionsService = async (
     },
     ...queryBuilder.options,
     include: {
-      appointment : true,
+      appointment: true,
       patient: user.role === UserRole.DOCTOR,
       doctor: user.role === UserRole.PATIENT,
     },
@@ -112,7 +132,6 @@ const getPrescriptionsService = async (query: Record<string, any>) => {
     .pagination()
     .build();
 
-   
   const prescriptions = await prisma.prescription.findMany({
     where: {
       ...where,
@@ -141,10 +160,10 @@ const getPrescriptionsService = async (query: Record<string, any>) => {
       totalPages: Math.ceil(total / limit),
     },
   };
-}; 
+};
 
-export const prescriptionServices = {
-  createPrescriptionService,
+export const reviewServices = {
+  createReviewService,
   getMyPrescriptionsService,
-  getPrescriptionsService
+  getPrescriptionsService,
 };

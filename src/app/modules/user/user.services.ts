@@ -49,6 +49,7 @@ const createDoctorService = async (payload: IDoctor) => {
         contactNumber: payload.contactNumber,
         address: payload.address,
         gender: payload.gender,
+        registrationNumber : payload.registrationNumber,
         appointmentFee: payload.appointmentFee,
         currentWorkingPlace: payload.currentWorkingPlace,
         designation: payload.designation,

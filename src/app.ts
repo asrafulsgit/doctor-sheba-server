@@ -4,10 +4,7 @@ import cookieParser from "cookie-parser";
 import globalErrorHandler from "./app/middlewares/globalErrorHandler";
 import notFound from "./app/middlewares/notFound";
 import router from "./app/routes";
-import { envVars } from "./app/config";
-import { stripe } from "./app/config/stripe";
-import { prisma } from "./app/shared/prisma";
-import { PaymentStatus } from "@prisma/client";
+import { envVars } from "./app/config"; 
 import { stripeWebhook } from "./app/modules/payment/payment.services";
 
 const app: Application = express();

@@ -23,6 +23,7 @@ const createDoctorValidationSchema = z.object({
       .int()
       .nonnegative("Experience cannot be negative")
       .optional(),
+    registrationNumber : z.string().min(6, "Registration number is too short"),
     gender: GenderEnum,
     appointmentFee: z.number().int().nonnegative("Fee cannot be negative"),
     currentWorkingPlace: z.string().min(2, "Current working place is required"),

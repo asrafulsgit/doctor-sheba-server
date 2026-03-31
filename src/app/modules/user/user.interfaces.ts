@@ -14,6 +14,7 @@ export interface IDoctor {
   address: string;
   experience?: number;
   gender: Gender;
+  registrationNumber : string;
   appointmentFee: number;
   currentWorkingPlace: string;
   designation: string;

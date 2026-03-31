@@ -40,11 +40,13 @@ model Doctor {
   address             String
   experience          Int      @default(0)
   gender              Gender
+  registrationNumber  String   @unique
   appointmentFee      Int
   currentWorkingPlace String
   designation         String
   qualification       String
   isDeleted           Boolean  @default(false)
+  averageRating       Float    @default(0)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
@@ -53,7 +55,7 @@ model Doctor {
   doctorSpecialities DoctorSpecialities[]
   appointments       Appointment[]
   prescriptions      Prescription[]
-  review              Review[]
+  review             Review[]
 
   @@map("doctors")
 }
