@@ -1,13 +1,11 @@
-import openAi from "../../config/openAi";
 import AppError from "../../errorHelpers/appError";
 import { prisma } from "../../shared/prisma";
-import { CUSTOM_ERROR } from "../../utils/constants";
-import QueryBuilder from "../../utils/queryBuilder";
 import httpStatus from "http-status";
-import { IUpdateDoctor } from "./appointment.interfaces";
 import { JwtPayload } from "jsonwebtoken";
 import { v4 as uuidv4 } from "uuid";
 import { createPaymentSession } from "../../utils/paymentSession";
+import QueryBuilder from "../../utils/queryBuilder";
+import { AppointmentStatus, UserRole } from "@prisma/client";
 
 const createAppointmentService = async (
   user: JwtPayload,
@@ -58,7 +56,6 @@ const createAppointmentService = async (
   }
 
   const videoCallingId = `VC-${uuidv4()}`;
-
   const newAppointment = await prisma.$transaction(async (tnx) => {
     const appointmentData = await tnx.appointment.create({
       data: {
@@ -93,18 +90,167 @@ const createAppointmentService = async (
 
     const sessionData = {
       appointmentId: appointmentData.id,
-      paymentId : payment.id,
+      paymentId: payment.id,
       appointmentFee: payment.amount,
       docotorName: doctor.name,
     };
 
     const paymentSession = await createPaymentSession(sessionData);
-    return {session_url : paymentSession.url};
+    return { session_url: paymentSession.url };
   });
 
   return newAppointment;
 };
 
+const myAppointmentsService = async (
+  user: JwtPayload,
+  query: Record<string, any>,
+) => {
+  const { startDate, endDate } = query;
+  const { where, options } = new QueryBuilder(query)
+    .sort()
+    .filter()
+    .pagination()
+    .build();
+  if (user.role === UserRole.PATIENT) {
+    where.patient = {
+      email: user.email,
+    };
+  }
+  if (user.role === UserRole.DOCTOR) {
+    where.doctor = {
+      email: user.email,
+    };
+  }
+
+  if (startDate || endDate) {
+    where.schedule = where.schedule || {};
+    where.schedule.startDateTime = {};
+
+    if (startDate) {
+      where.schedule.startDateTime.gte = new Date(startDate);
+    }
+
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      where.schedule.startDateTime.lte = end;
+    }
+  }
+  const appointments = await prisma.appointment.findMany({
+    where: {
+      ...where,
+    },
+    ...options,
+    include: {
+      schedule: true,
+      patient: user.role === UserRole.DOCTOR,
+      doctor: user.role === UserRole.PATIENT,
+    },
+  });
+  const total = await prisma.appointment.count({
+    where: {
+      ...where,
+    },
+  });
+  const limit = Number(query.limit) || 10;
+  return {
+    data: appointments,
+    meta: {
+      total,
+      page: Number(query.page) || 1,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
+};
+
+const getAppointmentsService = async (query: Record<string, any>) => {
+  const { startDate, endDate } = query;
+  const { where, options } = new QueryBuilder(query)
+    .sort()
+    .filter()
+    .pagination()
+    .build();
+
+  if (startDate || endDate) {
+    where.schedule = where.schedule || {};
+    where.schedule.startDateTime = {};
+
+    if (startDate) {
+      where.schedule.startDateTime.gte = new Date(startDate);
+    }
+
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      where.schedule.startDateTime.lte = end;
+    }
+  }
+  const appointments = await prisma.appointment.findMany({
+    where: {
+      ...where,
+    },
+    ...options,
+    include: {
+      schedule: true,
+      patient: true,
+      doctor: true,
+    },
+  });
+
+  const total = await prisma.appointment.count({
+    where: {
+      ...where,
+    },
+  });
+
+  const limit = Number(query.limit) || 10;
+  return {
+    data: appointments,
+    meta: {
+      total,
+      page: Number(query.page) || 1,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
+};
+const updateAppointmentStatusService = async (
+  appointmentId: string,
+  status: AppointmentStatus,
+  user: JwtPayload,
+) => {
+  const appointmentData = await prisma.appointment.findUniqueOrThrow({
+    where: {
+      id: appointmentId,
+    },
+    include: {
+      doctor: true,
+    },
+  });
+
+  if (user?.role === UserRole.DOCTOR) {
+    if (!(user?.email === appointmentData.doctor.email))
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        "This is not your appointment",
+      );
+  }
+
+  return await prisma.appointment.update({
+    where: {
+      id: appointmentId,
+    },
+    data: {
+      status,
+    },
+  });
+};
+
 export const appointmentServices = {
   createAppointmentService,
+  myAppointmentsService,
+  getAppointmentsService,
+  updateAppointmentStatusService
 };
