@@ -3,6 +3,7 @@ import { prisma } from "../../shared/prisma";
 import QueryBuilder from "../../utils/queryBuilder";
 import AppError from "../../errorHelpers/appError";
 import httpStatus from "http-status";
+import { AppointmentStatus, PaymentStatus } from "@prisma/client";
 
 const createDoctorScheduleService = async (
   email: string,
@@ -218,5 +219,5 @@ export const doctorScheduleServices = {
   createDoctorScheduleService,
   getDoctorAvailableSchedulesService,
   getDoctorSchedulesService,
-  deleteDoctorScheduleService,
+  deleteDoctorScheduleService
 };

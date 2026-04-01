@@ -5,7 +5,7 @@ import { JwtPayload } from "jsonwebtoken";
 import { v4 as uuidv4 } from "uuid";
 import { createPaymentSession } from "../../utils/paymentSession";
 import QueryBuilder from "../../utils/queryBuilder";
-import { AppointmentStatus, UserRole } from "@prisma/client";
+import { AppointmentStatus, PaymentStatus, UserRole } from "@prisma/client";
 
 const createAppointmentService = async (
   user: JwtPayload,
@@ -248,9 +248,63 @@ const updateAppointmentStatusService = async (
   });
 };
 
+
+const cancelUnpaidAppointmentsService = async () => {
+    const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000);
+
+    const unPaidAppointments = await prisma.appointment.findMany({
+        where: {
+            createdAt: {
+                lte: thirtyMinAgo
+            },
+            paymentStatus: PaymentStatus.UNPAID
+        }
+    })
+
+    const appointmentIdsToCancel = unPaidAppointments.map(appointment => appointment.id);
+
+    await prisma.$transaction(async (tnx) => {
+         
+        await tnx.appointment.updateMany({
+            where: {
+                id: {
+                    in: appointmentIdsToCancel
+                }
+            },
+            data: {
+                status: AppointmentStatus.CANCELED
+            }
+        })
+
+         
+        await tnx.payment.deleteMany({
+            where: {
+                appointmentId: {
+                    in: appointmentIdsToCancel
+                }
+            }
+        })
+
+        // Free up doctor schedules
+        for (const unPaidAppointment of unPaidAppointments) {
+            await tnx.doctorSchedules.update({
+                where: {
+                    doctorId_scheduleId: {
+                        doctorId: unPaidAppointment.doctorId,
+                        scheduleId: unPaidAppointment.scheduleId
+                    }
+                },
+                data: {
+                    isBooked: false
+                }
+            })
+        }
+    })
+}
 export const appointmentServices = {
   createAppointmentService,
   myAppointmentsService,
   getAppointmentsService,
-  updateAppointmentStatusService
+  updateAppointmentStatusService,
+  cancelUnpaidAppointmentsService
 };

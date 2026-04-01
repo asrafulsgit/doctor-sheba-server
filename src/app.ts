@@ -4,7 +4,8 @@ import cookieParser from "cookie-parser";
 import globalErrorHandler from "./app/middlewares/globalErrorHandler";
 import notFound from "./app/middlewares/notFound";
 import router from "./app/routes";
-import { envVars } from "./app/config"; 
+import { envVars } from "./app/config";
+import "./app/utils/cronJob";
 import { stripeWebhook } from "./app/modules/payment/payment.services";
 
 const app: Application = express();
