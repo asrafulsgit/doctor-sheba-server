@@ -11,7 +11,7 @@ import { stripeWebhook } from "./app/modules/payment/payment.services";
 const app: Application = express();
 
 app.post("/webhook", raw({ type: "application/json" }), stripeWebhook);
-
+app.set("trust proxy", true);
 app.use(
   cors({
     origin: "http://localhost:3000",
