@@ -1,7 +1,7 @@
 import { Server } from 'http';
 import app from './app'; 
 import { envVars } from './app/config';
-
+import { redisConnection } from './app/config/redis';
 
 async function bootstrap() {
     // This variable will hold our server instance
@@ -9,6 +9,7 @@ async function bootstrap() {
 
     try {
         // Start the server
+        await redisConnection();
         server = app.listen(envVars.PORT, () => {
             console.log(`🚀 Server is running on http://localhost:${envVars.PORT}`);
         });

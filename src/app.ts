@@ -7,11 +7,13 @@ import router from "./app/routes";
 import { envVars } from "./app/config";
 import "./app/utils/cronJob";
 import { stripeWebhook } from "./app/modules/payment/payment.services";
+import rateLimitConfig from "./app/config/rateLimt";
+import { createRateLimitMiddleware } from "./app/middlewares/rateLimiter";
 
 const app: Application = express();
 
 app.post("/webhook", raw({ type: "application/json" }), stripeWebhook);
-app.set("trust proxy", true);
+app.set("trust proxy", 1);
 app.use(
   cors({
     origin: "http://localhost:3000",
@@ -24,6 +26,7 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+app.use(createRateLimitMiddleware(rateLimitConfig.global))
 app.use("/api/v1", router);
 
 app.get("/", (req: Request, res: Response) => {
