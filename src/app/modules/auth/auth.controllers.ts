@@ -71,20 +71,20 @@ const authChangePasswordController = catchAsync(
   },
 );
 
-// const authSetPasswordController = asyncHandler(
-//   async (req: Request, res: Response, next: NextFunction) => {
-//     const user = req.user as JwtPayload;
-//     const { password } = req.body;
-//     await authServices.setPasswordService(user.id, password);
+const authSetPasswordController = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const user = req.user as JwtPayload;
+    const { password } = req.body;
+    await authServices.setPasswordService(user.id as string, password);
 
-//     sendResponse(res, {
-//       statusCode: httpStatusCode.OK,
-//       success: true,
-//       message: "Password reset successfull",
-//       data: null,
-//     });
-//   },
-// );
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: "Password set successfully",
+      data: null,
+    });
+  },
+);
 
 const authForgotPasswordController = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -112,22 +112,27 @@ const authResetPasswordController = catchAsync(
   },
 );
 
-// const googleAuthLoginController = catchAsync(
-//   async (req: Request, res: Response, next: NextFunction) => {
-//     const user = req.user;
-//     const tokens = getBothToken(user!);
-//     setAuthTokens(res, tokens);
-//     res.redirect(envs.FRONTEND_URL);
-//   },
-// );
+const authGoogleLoginController = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const tokenId = req.body.token as string;
+    const tokens = await authServices.googleLoginService(tokenId);
+    setCookies(res, tokens);
+    sendResponse(res, {
+      success: true,
+      statusCode: httpStatus.OK,
+      message: "Google login Successfull",
+      data: null,
+    });
+  },
+);
 
 export const authControllers = {
   loginController,
   getAccessTokenController,
   authLogoutController,
   authChangePasswordController,
-  // authSetPasswordController,
+  authSetPasswordController,
   authForgotPasswordController,
   authResetPasswordController,
-  // googleAuthLoginController,
+  authGoogleLoginController,
 };

@@ -11,6 +11,7 @@ import { CUSTOM_ERROR } from "../../utils/constants";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import { envVars } from "../../config";
 import { sendEmail } from "../../utils/emailSender";
+import { firebaseAdmin } from "../../config/firebase";
 
 const loginService = async (payload: { email: string; password: string }) => {
   const user = await prisma.user.findUnique({
@@ -26,6 +27,14 @@ const loginService = async (payload: { email: string; password: string }) => {
       CUSTOM_ERROR.USER_NOT_FOUND,
     );
   }
+
+  if (user?.needPasswordChange) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      "Please set your password by Forgot Password",
+    );
+  }
+
   if (!user.isVerified) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
@@ -45,7 +54,7 @@ const loginService = async (payload: { email: string; password: string }) => {
 
   const isCorrectPassword = await bcrypt.compare(
     payload.password,
-    user.password,
+    user.password as string,
   );
   if (!isCorrectPassword) {
     throw new AppError(httpStatus.BAD_REQUEST, "Invalid credentials");
@@ -108,40 +117,36 @@ const changePasswordService = async (
   });
 };
 
-// const setPasswordService = async (userId: string, password: string) => {
-//   const user = await prisma.user.findUniqueOrThrow({
-//     where : {
-//       id : userId
-//     }
-//   });
+const setPasswordService = async (userId: string, password: string) => {
+  const user = await prisma.user.findUniqueOrThrow({
+    where: {
+      id: userId,
+    },
+  });
 
-//   if (!user) throw new AppError(httpStatus.NOT_FOUND, "User not found");
+  if (!user) throw new AppError(httpStatus.NOT_FOUND, "User not found");
 
-//   if (
-//     user.password &&
-//     user.auths.some((auth) => auth.provider === "Creadentials")
-//   ) {
-//     throw new AppError(
-//       httpStatusCode.BAD_REQUEST,
-//       `You have already setup your password.
-//             Please go to your plofile and change your password`,
-//     );
-//   }
+  if (!user.needPasswordChange) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      `You have already setup your password. Please go to your profile and change your password`,
+    );
+  }
 
-//   const newAuths: IAuthProvider = {
-//     provider: "Creadentials",
-//     providerId: user.email,
-//   };
+  const hashedPassword = await bcrypt.hash(
+    password,
+    Number(envVars.BCRYPT_SALT),
+  );
 
-//   const userAuths: IAuthProvider[] = [newAuths, ...user.auths];
-
-//   const hashedPassword = await bcrypt.hash(password, Number(envs.BCRYPT_SALT));
-
-//   user.password = hashedPassword;
-//   user.auths = userAuths;
-
-//   await user.save();
-// };
+  await prisma.user.update({
+    where: {
+      id: user.id,
+    },
+    data: {
+      password: hashedPassword,
+    },
+  });
+};
 
 const forgotPasswordService = async (email: string) => {
   const isUserExist = await prisma.user.findFirstOrThrow({
@@ -241,11 +246,47 @@ const resetPasswordService = async (payload: Record<string, any>) => {
   });
 };
 
+const googleLoginService = async (token: string) => {
+  const decodeToken = await firebaseAdmin.auth().verifyIdToken(token);
+  const { email, name, picture } = decodeToken;
+  let user;
+  user = await prisma.user.findUnique({
+    where: {
+      email,
+    },
+  });
+  if (!user) {
+    user = await prisma.$transaction(async (tnx) => {
+      const newUser = await tnx.user.create({
+        data: {
+          email: email as string,
+          needPasswordChange: true,
+        },
+      });
+      await tnx.patient.create({
+        data: {
+          email: email as string,
+          name: name as string,
+        },
+      });
+      return newUser;
+    });
+  }
+  const tokenPayload = {
+    id: user.id,
+    role: user.role,
+    email: user.email,
+  };
+  const tokens = getTokens(tokenPayload);
+  return tokens;
+};
+
 export const authServices = {
   loginService,
   getAccessTokenService,
   changePasswordService,
-  // setPasswordService,
+  setPasswordService,
   forgotPasswordService,
   resetPasswordService,
+  googleLoginService,
 };

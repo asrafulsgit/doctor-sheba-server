@@ -25,6 +25,9 @@ interface EnvConfig {
   SMTP_HOST: string;
   SMTP_FROM: string;
   SMTP_PORT: string;
+  FIREBASE_PROJECT_ID: string;
+  FIREBASE_PRIVATE_KEY: string;
+  FIREBASE_CLIENT_EMAIL: string;
 }
 
 const loadEnvVariables = (): EnvConfig => {
@@ -53,6 +56,9 @@ const loadEnvVariables = (): EnvConfig => {
     "SMTP_HOST",
     "SMTP_FROM",
     "SMTP_PORT",
+    "FIREBASE_PROJECT_ID",
+    "FIREBASE_PRIVATE_KEY",
+    "FIREBASE_CLIENT_EMAIL",
   ];
 
   requiredEnvVariables.forEach((key) => {
@@ -88,6 +94,9 @@ const loadEnvVariables = (): EnvConfig => {
     SMTP_HOST: process.env.SMTP_HOST as string,
     SMTP_FROM: process.env.SMTP_FROM as string,
     SMTP_PORT: process.env.SMTP_PORT as string,
+    FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID as string,
+    FIREBASE_PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY as string,
+    FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL as string,
   };
 };
 

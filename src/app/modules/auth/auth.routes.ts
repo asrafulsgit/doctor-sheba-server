@@ -3,27 +3,39 @@ import validateRequest from "../../middlewares/validateRequest";
 import { authValidators } from "./auth.validation";
 import { authControllers } from "./auth.controllers";
 import { authentication } from "../../middlewares/authentication";
-import { UserRole, UserStatus } from "@prisma/client";
+import { UserRole } from "@prisma/client";
 
 const router = Router();
 
+// email and password login
 router.post(
   "/login",
   validateRequest(authValidators.loginValidation),
   authControllers.loginController,
 );
-router.get('/refresh-token',authControllers.getAccessTokenController);
-router.get('/logout',authControllers.authLogoutController);
 
+// google login (register)
+router.post(
+  "/google", 
+  authControllers.authGoogleLoginController,
+);
+
+// get new access token by refresh token
+router.get('/refresh-token',authControllers.getAccessTokenController);
+
+// change password using old password
 router.post('/change-password',authentication(...Object.values(UserRole)),
 authControllers.authChangePasswordController);
 
-// router.post('/set-password',authentication(...Object.values(UserRole)),
-// authControllers.authSetPasswordController);
+// set password for google login patients
+router.post('/set-password',authentication(...Object.values(UserRole.PATIENT)),
+authControllers.authSetPasswordController);
 
+// send email and forgot password
 router.post('/forgot-password/email',authControllers.authForgotPasswordController);
 router.post('/forgot-password/reset',authControllers.authResetPasswordController);
 
-
+// logout (clear tokens)
+router.get('/logout',authControllers.authLogoutController);
 
 export const authRouter = router;
