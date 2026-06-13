@@ -1,8 +1,8 @@
 {
-  "name": "ph-health-care-starter",
+  "name": "DoctorSheba",
   "version": "1.0.0",
   "main": "server.js",
-  "author": "shafayat",
+  "author": "Asraful",
   "license": "MIT",
   "prisma": {
     "schema": "./prisma/schema"
