@@ -6,7 +6,11 @@ import { authentication } from "../../middlewares/authentication";
 import { UserRole } from "@prisma/client";
 const router = Router();
 
-router.get("/", doctorControllers.getDoctorsController);
+router.get(
+  "/",
+  validateRequest(doctorValidators.getDoctorsQueryValidation),
+  doctorControllers.getDoctorsController,
+);
 
 router.post(
   "/suggestion",
