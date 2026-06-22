@@ -1,18 +1,12 @@
 import { deleteCloudinaryImage } from "../../config/cloudinary";
 import { prisma } from "../../shared/prisma";
 
-const createSpecialitieService = async (
-  icon: string,
-  payload: {
-    title: string;
-  },
-) => {
-  // console.log(icon,payload.title)
+const createSpecialitieService = async (payload: {
+  title: string;
+  icon: string;
+}) => {
   const result = await prisma.specialities.create({
-    data: {
-      icon,
-      title: payload.title,
-    },
+    data: payload,
   });
 
   return result;
@@ -28,10 +22,7 @@ const deleteSpecialitieService = async (id: string) => {
       id,
     },
   });
-  const icon = result.icon;
-  if (icon) {
-    await deleteCloudinaryImage(icon);
-  }
+
   return result;
 };
 

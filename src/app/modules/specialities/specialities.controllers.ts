@@ -5,8 +5,7 @@ import sendResponse from "../../shared/sendResponse";
 import { specialitiesServices } from "./specialities.services";
 
 const createSpecialitieController = catchAsync(async (req: Request, res: Response) => {
-    const icon = req.file?.path as string;
-    const result = await specialitiesServices.createSpecialitieService(icon,req.body);
+    const result = await specialitiesServices.createSpecialitieService(req.body);
 
     sendResponse(res, {
         statusCode: httpStatus.OK,

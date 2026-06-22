@@ -13,7 +13,6 @@ router.get("/", specialitiesControllers.getSpecialitiesController);
 
 router.post(
   "/",
-  multerUpload.single("image"),
   authentication(UserRole.ADMIN),
   validateRequest(specialitiesValidators.createSpecialityValidationSchema),
   specialitiesControllers.createSpecialitieController,
