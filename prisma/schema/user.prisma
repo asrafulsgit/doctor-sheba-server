@@ -12,6 +12,7 @@ model User {
   admin   Admin?
   doctor  Doctor?
   patient Patient?
+  helth_tip HealthTip[]
 
   @@map("users")
 }

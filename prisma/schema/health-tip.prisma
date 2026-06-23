@@ -1,0 +1,21 @@
+model HealthTip {
+    id       String  @id @default(uuid())
+    title    String
+    slug     String  @unique
+    category String
+    excerpt  String?
+    content  String  @db.Text
+    icon     String?
+
+    authorId String
+    author   User   @relation(fields: [authorId], references: [id])
+
+    views       Int     @default(0)
+    isPublished Boolean @default(true)
+
+    publishedAt DateTime?
+    createdAt   DateTime  @default(now())
+    updatedAt   DateTime  @updatedAt
+
+    @@map("health_tips")
+}
