@@ -1,9 +1,10 @@
-import { UserRole } from "@prisma/client";
+import { UserRole, UserStatus } from "@prisma/client";
 import { envVars } from "../../config";
 import { prisma } from "../../shared/prisma";
 import { IDoctor, IPatient } from "./user.interfaces";
 import bcrypt from "bcryptjs";
 import QueryBuilder from "../../utils/queryBuilder";
+import { JwtPayload } from "jsonwebtoken";
 
 const createPatientService = async (payload: IPatient) => {
   const password = await bcrypt.hash(
@@ -49,7 +50,7 @@ const createDoctorService = async (payload: IDoctor) => {
         contactNumber: payload.contactNumber,
         address: payload.address,
         gender: payload.gender,
-        registrationNumber : payload.registrationNumber,
+        registrationNumber: payload.registrationNumber,
         appointmentFee: payload.appointmentFee,
         currentWorkingPlace: payload.currentWorkingPlace,
         designation: payload.designation,
@@ -134,9 +135,54 @@ const getAllUserService = async (query: Record<string, any>) => {
   };
 };
 
+const getMyProfileService = async (user: JwtPayload) => {
+  const userInfo = await prisma.user.findUniqueOrThrow({
+    where: {
+      email: user.email,
+      status: UserStatus.ACTIVE,
+    },
+    select: {
+      id: true,
+      email: true,
+      needPasswordChange: true,
+      role: true,
+      status: true,
+      isVerified: true,
+    },
+  });
+
+  let profileData;
+
+  if (userInfo.role === UserRole.PATIENT) {
+    profileData = await prisma.patient.findUnique({
+      where: {
+        email: userInfo.email,
+      },
+    });
+  } else if (userInfo.role === UserRole.DOCTOR) {
+    profileData = await prisma.doctor.findUnique({
+      where: {
+        email: userInfo.email,
+      },
+    });
+  } else if (userInfo.role === UserRole.ADMIN) {
+    profileData = await prisma.admin.findUnique({
+      where: {
+        email: userInfo.email,
+      },
+    });
+  }
+
+  return {
+    ...userInfo,
+    ...profileData,
+  };
+};
+
 export const userServices = {
   createPatientService,
   createDoctorService,
   createAdminService,
   getAllUserService,
+  getMyProfileService
 };

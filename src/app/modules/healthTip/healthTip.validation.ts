@@ -38,6 +38,12 @@ export const getHealthTipValidationQuery = z.object({
   }),
 });
 
+export const healthTipValidationParams = z.object({
+  params: z.object({
+    slug: z.string(),
+  }),
+});
+
 export type CreateHealthTipInput = z.infer<
   typeof createHealthTipValidationSchema
 >["body"];
@@ -49,4 +55,5 @@ export type GetHealthTipsQuery = z.infer<
 export const healthTibValidators = {
   createHealthTipValidationSchema,
   getHealthTipValidationQuery,
+  healthTipValidationParams
 };

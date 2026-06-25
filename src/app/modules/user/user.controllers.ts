@@ -3,6 +3,7 @@ import catchAsync from "../../shared/catchAsync";
 import { userServices } from "./user.services";
 import sendResponse from "../../shared/sendResponse";
 import httpStatus from "http-status";
+import { JwtPayload } from "jsonwebtoken";
 
 const createPatientController = catchAsync(
   async (req: Request, res: Response) => {
@@ -51,9 +52,25 @@ const getAllUserController = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const getMyProfileController = catchAsync(
+  async (req: Request, res: Response) => {
+    const user = req.user;
+
+    const result = await userServices.getMyProfileService(user as JwtPayload);
+
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: "Profile data fetched!",
+      data: result,
+    });
+  },
+);
+
 export const userControllers = {
   createPatientController,
   createDoctorController,
   createAdminController,
   getAllUserController,
+  getMyProfileController,
 };

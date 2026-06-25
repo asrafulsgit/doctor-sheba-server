@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { userControllers } from "./user.controllers"; 
+import { userControllers } from "./user.controllers";
 import validateRequest from "../../middlewares/validateRequest";
 import { userValidators } from "./user.validation";
 import { authentication } from "../../middlewares/authentication";
@@ -11,6 +11,12 @@ router.get(
   "/",
   authentication(UserRole.ADMIN),
   userControllers.getAllUserController,
+);
+
+router.get(
+  "/me",
+  authentication(UserRole.ADMIN, UserRole.DOCTOR, UserRole.PATIENT),
+  userControllers.getMyProfileController,
 );
 
 router.post(

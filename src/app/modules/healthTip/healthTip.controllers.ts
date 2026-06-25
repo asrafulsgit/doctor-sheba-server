@@ -25,7 +25,8 @@ const getHealthTipsController = catchAsync(
       statusCode: httpStatus.OK,
       success: true,
       message: "Health tips fetched successfully",
-      data: result,
+      data: result.data,
+      meta: result.meta,
     });
   },
 );

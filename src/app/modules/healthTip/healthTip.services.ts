@@ -60,7 +60,7 @@ const getHealthTipService = async (slug: string) => {
 };
 
 const deleteHealhTipService = async (authorId: string, slug: string) => {
-  const result = await prisma.healthTip.delete({
+  await prisma.healthTip.delete({
     where: {
       slug,
       authorId,

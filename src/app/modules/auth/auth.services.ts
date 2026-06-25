@@ -67,10 +67,8 @@ const loginService = async (payload: { email: string; password: string }) => {
   };
 
   const tokens = getTokens(tokenPayload);
-  const { password, ...userWithoutPassword } = user;
   return {
-    user: userWithoutPassword,
-    tokens,
+    tokens
   };
 };
 

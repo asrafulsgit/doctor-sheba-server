@@ -15,7 +15,7 @@ router.get(
 );
 router.get(
   "/:slug",
-  healthTipControllers.deleteHealthTipController,
+  validateRequest(healthTibValidators.healthTipValidationParams),
   healthTipControllers.getHealthTipController,
 );
 
@@ -29,6 +29,7 @@ router.post(
 router.delete(
   "/:slug",
   authentication(UserRole.ADMIN, UserRole.DOCTOR),
+  validateRequest(healthTibValidators.healthTipValidationParams),
   healthTipControllers.deleteHealthTipController,
 );
 

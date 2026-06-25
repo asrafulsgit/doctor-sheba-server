@@ -15,7 +15,7 @@ const loginController = catchAsync(async (req: Request, res: Response) => {
     statusCode: httpStatus.OK,
     success: true,
     message: "User login successfull",
-    data,
+    data : null,
   });
 });
 
