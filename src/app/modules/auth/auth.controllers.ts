@@ -3,9 +3,8 @@ import catchAsync from "../../shared/catchAsync";
 import sendResponse from "../../shared/sendResponse";
 import httpStatus from "http-status";
 import { authServices } from "./auth.services";
-import { setCookies } from "../../utils/setCookies";
+import { clearCookies, setCookies } from "../../utils/cookies";
 import AppError from "../../errorHelpers/appError";
-import { clearTokens } from "../../utils/generateToken";
 import { JwtPayload } from "jsonwebtoken";
 
 const loginController = catchAsync(async (req: Request, res: Response) => {
@@ -15,7 +14,7 @@ const loginController = catchAsync(async (req: Request, res: Response) => {
     statusCode: httpStatus.OK,
     success: true,
     message: "User login successfull",
-    data : null,
+    data: data.data,
   });
 });
 
@@ -41,7 +40,7 @@ const getAccessTokenController = catchAsync(
 
 const authLogoutController = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
-    clearTokens(res);
+    clearCookies(res);
     sendResponse(res, {
       statusCode: httpStatus.OK,
       success: true,

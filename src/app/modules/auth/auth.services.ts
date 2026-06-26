@@ -1,4 +1,4 @@
-import { UserStatus } from "@prisma/client";
+import { UserRole, UserStatus } from "@prisma/client";
 import { prisma } from "../../shared/prisma";
 import bcrypt from "bcryptjs";
 import AppError from "../../errorHelpers/appError";
@@ -67,8 +67,30 @@ const loginService = async (payload: { email: string; password: string }) => {
   };
 
   const tokens = getTokens(tokenPayload);
+  let profileData;
+  if (user.role === UserRole.PATIENT) {
+    profileData = await prisma.patient.findUnique({
+      where: {
+        email: user.email,
+      },
+    });
+  } else if (user.role === UserRole.DOCTOR) {
+    profileData = await prisma.doctor.findUnique({
+      where: {
+        email: user.email,
+      },
+    });
+  } else if (user.role === UserRole.ADMIN) {
+    profileData = await prisma.admin.findUnique({
+      where: {
+        email: user.email,
+      },
+    });
+  }
+  const { password, ...userData } = user;
   return {
-    tokens
+    tokens,
+    data: { ...userData, ...profileData },
   };
 };
 

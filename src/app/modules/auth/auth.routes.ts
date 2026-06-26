@@ -36,6 +36,6 @@ router.post('/forgot-password/email',authControllers.authForgotPasswordControlle
 router.post('/forgot-password/reset',authControllers.authResetPasswordController);
 
 // logout (clear tokens)
-router.get('/logout',authControllers.authLogoutController);
+router.post('/logout',authControllers.authLogoutController);
 
 export const authRouter = router;
