@@ -100,12 +100,13 @@ const authForgotPasswordController = catchAsync(
 );
 const authResetPasswordController = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
-    await authServices.resetPasswordService(req.body);
+    const token = req.query.token as string;
+    await authServices.resetPasswordService(req.body, { token });
 
     sendResponse(res, {
       success: true,
       statusCode: httpStatus.OK,
-      message: "Password Changed Successfully",
+      message: "Password reset successfully",
       data: null,
     });
   },

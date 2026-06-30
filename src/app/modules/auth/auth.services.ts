@@ -216,7 +216,7 @@ const forgotPasswordService = async (email: string) => {
     expiresIn: "10m",
   });
 
-  const resetUILink = `${envVars.FRONTEND_URL}/auth/forgot-password/reset?token=${resetToken}`;
+  const resetUILink = `${envVars.FRONTEND_URL}/auth/reset-password?token=${resetToken}&email=${isUserExist.email}`;
 
   const userName =
     isUserExist.admin?.name ||
@@ -234,8 +234,8 @@ const forgotPasswordService = async (email: string) => {
   });
 };
 
-const resetPasswordService = async (payload: Record<string, any>) => {
-  const token = payload.token;
+const resetPasswordService = async (payload: {password : string},query : {token : string}) => {
+  const token = query.token;
   const tokenPayload = jwt.verify(
     token,
     envVars.JWT_ACCESS_TOKEN_SECRET,
@@ -252,7 +252,7 @@ const resetPasswordService = async (payload: Record<string, any>) => {
   }
 
   const hashedPassword = await bcrypt.hash(
-    payload.newPassword,
+    payload.password,
     Number(envVars.BCRYPT_SALT),
   );
 
