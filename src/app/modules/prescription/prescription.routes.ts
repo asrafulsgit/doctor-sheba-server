@@ -4,6 +4,8 @@ import { UserRole } from "@prisma/client";
 import {
   prescriptionControllers,
 } from "./prescription.controllers";
+import validateRequest from "../../middlewares/validateRequest";
+import { prescriptionValidators } from "./prescription.validation";
 
 const router = Router();
 
@@ -21,6 +23,7 @@ router.get(
 router.post(
   "/",
   authentication(UserRole.DOCTOR),
+  validateRequest(prescriptionValidators.createPrescriptionValidation),
   prescriptionControllers.createPrescriptionController,
 );
 

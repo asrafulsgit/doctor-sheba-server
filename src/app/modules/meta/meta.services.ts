@@ -1,24 +1,148 @@
-import { PaymentStatus, UserRole } from "@prisma/client";
+import { AppointmentStatus, PaymentStatus, UserRole } from "@prisma/client";
 import { JwtPayload } from "jsonwebtoken";
 import { prisma } from "../../shared/prisma";
 
-const getDashboardMetaDataService = async (user: JwtPayload) => {
-  let metaData;
-  switch (user?.role) {
-    case UserRole.ADMIN:
-      metaData = getAdminMetaData();
-      break;
-    case UserRole.DOCTOR:
-      metaData = getDoctorMetaData(user);
-      break;
-    case UserRole.PATIENT:
-      metaData = getPatientMetaData(user);
-      break;
-    default:
-      throw new Error("Invalid user role!");
+const now = new Date();
+const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+const getPatientMetaDataService = async (user: JwtPayload) => {
+  let metaData = getPatientMetaData(user);
+  return metaData;
+};
+
+const getPatientMetaData = async (user: JwtPayload) => {
+  const patientData = await prisma.patient.findUniqueOrThrow({
+    where: {
+      email: user?.email,
+    },
+  });
+  const patientId = patientData.id;
+  const [
+    upcomingCount,
+    completedVisitsCount,
+    totalPrescriptions,
+    savedReports,
+    upcomingAppointments,
+    healthData,
+    recentPrescriptions,
+  ] = await Promise.all([
+    // upcoming (next 7 days), scheduled only
+    prisma.appointment.count({
+      where: {
+        patientId,
+        status: AppointmentStatus.SCHEDULED,
+        schedule: { startDateTime: { gte: now, lte: sevenDaysFromNow } },
+      },
+    }),
+
+    // completed visits (all-time)
+    prisma.appointment.count({
+      where: { patientId, status: AppointmentStatus.COMPLETED },
+    }),
+
+    // total prescriptions ever issued to this patient
+    prisma.prescription.count({ where: { patientId } }),
+
+    // saved medical reports
+    prisma.medicalReport.count({ where: { patientId } }),
+
+    // next 3 upcoming appointments with full doctor info
+    prisma.appointment.findMany({
+      where: {
+        patientId,
+        status: AppointmentStatus.SCHEDULED,
+        schedule: { startDateTime: { gte: now } },
+      },
+      orderBy: { schedule: { startDateTime: "asc" } },
+      take: 3,
+      include: {
+        doctor: {
+          include: {
+            doctorSpecialities: { include: { specialities: true } },
+          },
+        },
+        schedule: true,
+      },
+    }),
+
+    // health summary
+    prisma.patientHealthData.findUnique({ where: { patientId } }),
+
+    // recent prescriptions
+    prisma.prescription.findMany({
+      where: { patientId },
+      orderBy: { createdAt: "desc" },
+      take: 3,
+      include: {
+        doctor: true,
+        appointment: { include: { schedule: true } },
+        medications : true
+      },
+    }),
+  ]);
+
+ const calculateBMI = (
+  height?: string | null,
+  weight?: string | null,
+): number | null => {
+  if (!height || !weight) return null;
+
+  let h = Number(height);
+  const w = Number(weight);
+
+  if (Number.isNaN(h) || Number.isNaN(w) || h <= 0 || w <= 0) {
+    return null;
   }
 
-  return metaData;
+  // Heights greater than 3 are probably centimeters.
+  if (h > 3) {
+    h = h / 100;
+  }
+
+  const bmi = w / (h * h);
+  return Math.round(bmi * 10) / 10;
+};
+
+  const healthSummary = healthData
+    ? {
+        bloodGroup: healthData.bloodGroup,
+        height: healthData.height,
+        weight: healthData.weight,
+        bmi: calculateBMI(healthData.height, healthData.weight),
+        // NOTE: schema only has booleans, not free-text allergy/condition
+        // lists. Surface the booleans; extend schema if you need text.
+        hasAllergies: healthData.hasAllergies ?? false,
+        hasDiabetes: healthData.hasDiabetes ?? false,
+        hasPastSurgeries: healthData.hasPastSurgeries ?? false,
+        mentalHealthHistory: healthData.mentalHealthHistory ?? null,
+        lastCheckup: null, // no dedicated field; see notes
+      }
+    : null;
+
+  const formattedPrescriptions = recentPrescriptions.map((rx) => ({
+    id: rx.id,
+    appointmentId: rx.appointmentId,
+    patientId: rx.patientId,
+    doctorId: rx.doctorId,
+    doctorName: rx.doctor?.name ?? null,
+    date: rx.createdAt,
+    instructions: rx.instructions,
+    followUpDate: rx.followUpDate, 
+    diagnosis: rx.diagnosis,
+    medications: rx.medications,
+  }));
+
+  return {
+    stats: {
+      upcoming: upcomingCount,
+      completedVisits: completedVisitsCount,
+      totalPrescriptions,
+      savedReports,
+    },
+    upcomingAppointments,
+    healthSummary,
+    recentPrescriptions: formattedPrescriptions,
+  };
 };
 
 const getAdminMetaData = async () => {
@@ -111,52 +235,52 @@ const getDoctorMetaData = async (user: JwtPayload) => {
   };
 };
 
-const getPatientMetaData = async (user: JwtPayload) => {
-  const patientData = await prisma.patient.findUniqueOrThrow({
-    where: {
-      email: user?.email,
-    },
-  });
+// const getPatientMetaData = async (user: JwtPayload) => {
+//   const patientData = await prisma.patient.findUniqueOrThrow({
+//     where: {
+//       email: user?.email,
+//     },
+//   });
 
-  const appointmentCount = await prisma.appointment.count({
-    where: {
-      patientId: patientData.id,
-    },
-  });
+//   const appointmentCount = await prisma.appointment.count({
+//     where: {
+//       patientId: patientData.id,
+//     },
+//   });
 
-  const prescriptionCount = await prisma.prescription.count({
-    where: {
-      patientId: patientData.id,
-    },
-  });
+//   const prescriptionCount = await prisma.prescription.count({
+//     where: {
+//       patientId: patientData.id,
+//     },
+//   });
 
-  const reviewCount = await prisma.review.count({
-    where: {
-      patientId: patientData.id,
-    },
-  });
+//   const reviewCount = await prisma.review.count({
+//     where: {
+//       patientId: patientData.id,
+//     },
+//   });
 
-  const appointmentStatusDistribution = await prisma.appointment.groupBy({
-    by: ["status"],
-    _count: { id: true },
-    where: {
-      patientId: patientData.id,
-    },
-  });
+//   const appointmentStatusDistribution = await prisma.appointment.groupBy({
+//     by: ["status"],
+//     _count: { id: true },
+//     where: {
+//       patientId: patientData.id,
+//     },
+//   });
 
-  const formattedAppointmentStatusDistribution =
-    appointmentStatusDistribution.map(({ status, _count }) => ({
-      status,
-      count: Number(_count.id),
-    }));
+//   const formattedAppointmentStatusDistribution =
+//     appointmentStatusDistribution.map(({ status, _count }) => ({
+//       status,
+//       count: Number(_count.id),
+//     }));
 
-  return {
-    appointmentCount,
-    prescriptionCount,
-    reviewCount,
-    formattedAppointmentStatusDistribution,
-  };
-};
+//   return {
+//     appointmentCount,
+//     prescriptionCount,
+//     reviewCount,
+//     formattedAppointmentStatusDistribution,
+//   };
+// };
 
 const getBarChartData = async () => {
   const appointmentCountByMonth: { month: Date; count: bigint }[] =
@@ -187,5 +311,5 @@ const getPieChartData = async () => {
 };
 
 export const metaServices = {
-  getDashboardMetaDataService,
+  getPatientMetaDataService,
 };

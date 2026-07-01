@@ -5,14 +5,11 @@ import AppError from "../../errorHelpers/appError";
 import httpStatus from "http-status";
 import { AppointmentStatus, PaymentStatus, UserRole } from "@prisma/client";
 import { JwtPayload } from "jsonwebtoken";
+import { CreatePrescriptionInput } from "./prescription.validation";
 
 const createPrescriptionService = async (
   email: string,
-  payload: {
-    appointmentId: string;
-    instructions: string;
-    followUpDate: string | Date;
-  },
+  payload: CreatePrescriptionInput,
 ) => {
   const appointment = await prisma.appointment.findUniqueOrThrow({
     where: {
@@ -37,7 +34,7 @@ const createPrescriptionService = async (
     );
   }
 
-  if (!(email === appointment.doctor.email)) {
+  if (email !== appointment.doctor.email) {
     throw new AppError(httpStatus.BAD_REQUEST, "This is not your appointment");
   }
 
@@ -46,8 +43,12 @@ const createPrescriptionService = async (
       appointmentId: appointment.id,
       doctorId: appointment.doctor.id,
       patientId: appointment.patient.id,
+      diagnosis : payload.diagnosis,
       instructions: payload.instructions,
       followUpDate: payload.followUpDate,
+      medications: {
+        create: payload.medications,
+      },
     },
   });
 
@@ -82,7 +83,7 @@ const getMyPrescriptionsService = async (
     },
     ...queryBuilder.options,
     include: {
-      appointment : true,
+      appointment: true,
       patient: user.role === UserRole.DOCTOR,
       doctor: user.role === UserRole.PATIENT,
     },
@@ -112,7 +113,6 @@ const getPrescriptionsService = async (query: Record<string, any>) => {
     .pagination()
     .build();
 
-   
   const prescriptions = await prisma.prescription.findMany({
     where: {
       ...where,
@@ -141,10 +141,10 @@ const getPrescriptionsService = async (query: Record<string, any>) => {
       totalPages: Math.ceil(total / limit),
     },
   };
-}; 
+};
 
 export const prescriptionServices = {
   createPrescriptionService,
   getMyPrescriptionsService,
-  getPrescriptionsService
+  getPrescriptionsService,
 };

@@ -33,17 +33,33 @@ model Payment {
 }
 
 model Prescription {
-    id            String      @id @default(uuid())
+    id            String                   @id @default(uuid())
     appointmentId String
-    appointment   Appointment @relation(fields: [appointmentId], references: [id])
+    appointment   Appointment              @relation(fields: [appointmentId], references: [id])
     doctorId      String
-    doctor        Doctor      @relation(fields: [doctorId], references: [id])
+    doctor        Doctor                   @relation(fields: [doctorId], references: [id])
     patientId     String
-    patient       Patient     @relation(fields: [patientId], references: [id])
+    patient       Patient                  @relation(fields: [patientId], references: [id])
+    diagnosis     String
     instructions  String
     followUpDate  DateTime?
-    createdAt     DateTime    @default(now())
-    updatedAt     DateTime    @updatedAt
+    medications   PrescriptionMedication[]
+    createdAt     DateTime                 @default(now())
+    updatedAt     DateTime                 @updatedAt
 
     @@map("prescriptions")
+}
+
+model PrescriptionMedication {
+    id String @id @default(uuid())
+
+    prescriptionId String
+    prescription   Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+
+    name      String
+    dosage    String
+    frequency String
+    duration  String
+
+    @@map("prescription_medications")
 }
