@@ -7,12 +7,18 @@ const loginValidation = z.object({
   }),
 });
 
-const forgotPasswordValidation = z.object({
+const emailValidation = z.object({
   body: z.object({
     email: z.string().email({ message: "Invalid email format" }),
   }),
 });
 
+const otpVerificationValidation = z.object({
+  body: z.object({
+    email: z.string().email({ message: "Invalid email format" }),
+    otp: z.string().length(6, "Verification code must be 6 digits"),
+  }),
+});
 const resetPasswordValidation = z.object({
   body: z.object({
     password: z.string().nonempty("Passoword is required"),
@@ -25,5 +31,6 @@ const resetPasswordValidation = z.object({
 export const authValidators = {
   loginValidation,
   resetPasswordValidation,
-  forgotPasswordValidation,
+  emailValidation,
+  otpVerificationValidation
 };

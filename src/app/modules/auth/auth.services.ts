@@ -1,6 +1,7 @@
 import { UserRole, UserStatus } from "@prisma/client";
 import { prisma } from "../../shared/prisma";
 import bcrypt from "bcryptjs";
+import { randomInt } from "node:crypto";
 import AppError from "../../errorHelpers/appError";
 import httpStatus from "http-status";
 import {
@@ -12,6 +13,7 @@ import jwt, { JwtPayload } from "jsonwebtoken";
 import { envVars } from "../../config";
 import { sendEmail } from "../../utils/emailSender";
 import { firebaseAdmin } from "../../config/firebase";
+import { redisClient } from "../../config/redis";
 
 const loginService = async (payload: { email: string; password: string }) => {
   const user = await prisma.user.findUnique({
@@ -37,7 +39,7 @@ const loginService = async (payload: { email: string; password: string }) => {
 
   if (!user.isVerified) {
     throw new AppError(
-      httpStatus.BAD_REQUEST,
+      httpStatus.FORBIDDEN,
       `User is not verified`,
       CUSTOM_ERROR.USER_NOT_VERIFIED,
     );
@@ -234,7 +236,10 @@ const forgotPasswordService = async (email: string) => {
   });
 };
 
-const resetPasswordService = async (payload: {password : string},query : {token : string}) => {
+const resetPasswordService = async (
+  payload: { password: string },
+  query: { token: string },
+) => {
   const token = query.token;
   const tokenPayload = jwt.verify(
     token,
@@ -264,6 +269,81 @@ const resetPasswordService = async (payload: {password : string},query : {token 
       password: hashedPassword,
     },
   });
+};
+
+const OTPExpiresIn = 2 * 60;
+const OTPGenerator = (lenth = 6) => {
+  const OTP = randomInt(10 ** (lenth - 1), 10 ** lenth).toString();
+  return OTP;
+};
+
+const verifyEmailOTPSendService = async (email: string) => {
+  const user = await prisma.user.findUniqueOrThrow({
+    where: {
+      email,
+    },
+    include: {
+      admin: { select: { name: true } },
+      patient: { select: { name: true } },
+      doctor: { select: { name: true } },
+    },
+  });
+
+  if (user.isVerified) {
+    throw new AppError(httpStatus.BAD_REQUEST, "Email already verified");
+  }
+
+  const otp = OTPGenerator();
+  await redisClient.set(`otp:${user.email}`, otp, {
+    expiration: {
+      type: "EX",
+      value: OTPExpiresIn,
+    },
+  });
+  const userName =
+    user.admin?.name || user.doctor?.name || user.patient?.name || "";
+  await sendEmail({
+    to: user.email,
+    subject: "Email verification OTP",
+    templateName: "verifyEmail",
+    templateData: {
+      name: userName,
+      otp: otp,
+      expiryMinutes: "2",
+    },
+  });
+};
+
+const verifyEmailOPTVerificationService = async (
+  email: string,
+  otp: string,
+) => {
+  const user = await prisma.user.findUniqueOrThrow({ where: { email } });
+
+  if (!user) {
+    throw new AppError(httpStatus.NOT_FOUND, "User not found");
+  }
+
+  if (user.isVerified) {
+    throw new AppError(httpStatus.BAD_REQUEST, "email already verified");
+  }
+
+  const redisKey = `otp:${email}`;
+
+  const savedOtp = await redisClient.get(redisKey);
+
+  if (!savedOtp) {
+    throw new AppError(httpStatus.BAD_REQUEST, "Invalid OTP");
+  }
+
+  if (savedOtp !== otp) {
+    throw new AppError(httpStatus.BAD_REQUEST, "Invalid OTP");
+  }
+
+  await Promise.all([
+    prisma.user.update({ where: { email }, data: { isVerified: true } }),
+    redisClient.del([redisKey]),
+  ]);
 };
 
 const googleLoginService = async (token: string) => {
@@ -308,5 +388,7 @@ export const authServices = {
   setPasswordService,
   forgotPasswordService,
   resetPasswordService,
+  verifyEmailOTPSendService,
+  verifyEmailOPTVerificationService,
   googleLoginService,
 };

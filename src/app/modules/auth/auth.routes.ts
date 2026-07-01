@@ -37,13 +37,25 @@ router.post(
 // send email and forgot password
 router.post(
   "/forgot-password",
-  validateRequest(authValidators.forgotPasswordValidation),
+  validateRequest(authValidators.emailValidation),
   authControllers.authForgotPasswordController,
 );
 router.post(
   "/reset-password",
   validateRequest(authValidators.resetPasswordValidation),
   authControllers.authResetPasswordController,
+);
+
+router.post(
+  "/verify-email/otp-send",
+  validateRequest(authValidators.emailValidation),
+  authControllers.verfyEmailSendOTPController,
+);
+
+router.post(
+  "/verify-email/otp-verification",
+  validateRequest(authValidators.otpVerificationValidation),
+  authControllers.verifyEmailOTPVerificationController,
 );
 
 // logout (clear tokens)

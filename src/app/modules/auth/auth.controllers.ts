@@ -112,6 +112,32 @@ const authResetPasswordController = catchAsync(
   },
 );
 
+const verfyEmailSendOTPController = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { email } = req.body;
+    await authServices.verifyEmailOTPSendService(email);
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: "OTP send successful",
+      data: null,
+    });
+  },
+);
+
+const verifyEmailOTPVerificationController = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { email, otp } = req.body;
+    await authServices.verifyEmailOPTVerificationService(email, otp);
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: "OTP verification successfull",
+      data: null,
+    });
+  },
+);
+
 const authGoogleLoginController = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     const tokenId = req.body.token as string;
@@ -134,5 +160,7 @@ export const authControllers = {
   authSetPasswordController,
   authForgotPasswordController,
   authResetPasswordController,
+  verfyEmailSendOTPController,
+  verifyEmailOTPVerificationController,
   authGoogleLoginController,
 };

@@ -136,7 +136,6 @@ const getAllUserService = async (query: Record<string, any>) => {
 };
 
 const getMyProfileService = async (user: JwtPayload) => {
-  console.log('me', new Date())
   const userInfo = await prisma.user.findUniqueOrThrow({
     where: {
       email: user.email,
