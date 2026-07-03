@@ -1,7 +1,6 @@
 import openAi from "../../config/openAi";
 import AppError from "../../errorHelpers/appError";
 import { prisma } from "../../shared/prisma";
-import { CUSTOM_ERROR } from "../../utils/constants";
 import QueryBuilder from "../../utils/queryBuilder";
 import httpStatus from "http-status";
 import { IUpdateDoctor } from "./doctor.interfaces";
@@ -88,6 +87,38 @@ const getDoctorsService = async (query: Record<string, any>) => {
       totalPages: Math.ceil(total / limitNumber),
     },
     data: doctors,
+  };
+};
+
+const getDoctorService = async (id: string) => {
+  const doctor = await prisma.doctor.findUniqueOrThrow({
+    where: { id },
+    include: {
+      doctorSpecialities: {
+        include: {
+          specialities: true,
+        },
+      },
+    },
+  });
+
+  const reviews = await prisma.review.findMany({
+    where: {
+      doctorId: doctor.id,
+    },
+    include: {
+      patient: {
+        select: {
+          name: true,
+          profilePhoto : true
+        },
+      },
+    },
+  });
+
+  return {
+    doctor,
+    reviews,
   };
 };
 
@@ -267,12 +298,12 @@ const getMyDoctorsService = async (
     .sort()
     .pagination()
     .build();
- 
+
   const where: any = {
     appointments: {
       some: {
         patient: {
-          email : patientEmail
+          email: patientEmail,
         },
       },
     },
@@ -313,6 +344,7 @@ const getMyDoctorsService = async (
 
 export const doctorServices = {
   getDoctorsService,
+  getDoctorService,
   getAiSuggestedDoctorsService,
   updateDoctorService,
   getMyDoctorsService,

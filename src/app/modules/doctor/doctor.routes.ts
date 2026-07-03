@@ -17,6 +17,11 @@ router.get(
   validateRequest(doctorValidators.getDoctorsQueryValidation),
   doctorControllers.getDoctorsController,
 );
+router.get(
+  "/:id",
+  authentication(UserRole.PATIENT,UserRole.DOCTOR,UserRole.ADMIN),
+  doctorControllers.getDoctorController,
+);
 
 router.post(
   "/suggestion",
