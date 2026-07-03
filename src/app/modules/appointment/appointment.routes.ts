@@ -14,6 +14,11 @@ router.get(
   authentication(UserRole.PATIENT, UserRole.DOCTOR),
   appointmentControllers.myAppointmentsController,
 );
+router.get(
+  "/my-appointment/:id",
+  authentication(UserRole.PATIENT, UserRole.DOCTOR),
+  appointmentControllers.getSignleAppointmentController,
+);
 
 router.post(
   "/",
@@ -23,7 +28,7 @@ router.post(
 
 router.patch(
   "/status/:id",
-  authentication(UserRole.ADMIN,UserRole.DOCTOR),
+  authentication(UserRole.ADMIN,UserRole.DOCTOR,UserRole.PATIENT),
   appointmentControllers.updateAppointmentStatusController,
 );
 

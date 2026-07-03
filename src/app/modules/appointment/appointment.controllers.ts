@@ -37,6 +37,24 @@ const myAppointmentsController = catchAsync(
     });
   },
 );
+
+const getSignleAppointmentController = catchAsync(
+  async (req: Request, res: Response) => {
+    const user = req.user as JwtPayload;
+    const id = req.params.id as string;
+    const appointment = await appointmentServices.getSingleAppointmentService(
+      user,
+      id,
+    );
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: "Appointment retrieved successfully",
+      data: appointment
+    });
+  },
+);
+
 const getAppointmentsController = catchAsync(
   async (req: Request, res: Response) => {
     const appointments = await appointmentServices.getAppointmentsService(
@@ -66,14 +84,17 @@ const updateAppointmentStatusController = catchAsync(
       statusCode: httpStatus.OK,
       success: true,
       message: "Appointment status update successfully",
-      data: appointment, 
+      data: appointment,
     });
   },
 );
 
+ 
+
 export const appointmentControllers = {
   createAppointmentController,
   myAppointmentsController,
+  getSignleAppointmentController,
   getAppointmentsController,
-  updateAppointmentStatusController
+  updateAppointmentStatusController,
 };

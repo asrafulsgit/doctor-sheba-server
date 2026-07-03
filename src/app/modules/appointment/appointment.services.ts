@@ -165,6 +165,34 @@ const myAppointmentsService = async (
   };
 };
 
+const getSingleAppointmentService = async (user: JwtPayload, id: string) => {
+  const where: any = {};
+  if (user.role === UserRole.PATIENT) {
+    where.patient = {
+      email: user.email,
+    };
+  }
+  if (user.role === UserRole.DOCTOR) {
+    where.doctor = {
+      email: user.email,
+    };
+  }
+
+  const appointment = await prisma.appointment.findFirstOrThrow({
+    where: {
+      ...where,
+      id,
+    },
+    include: {
+      schedule: true,
+      patient: true,
+      doctor: true,
+    },
+  });
+
+  return appointment;
+};
+
 const getAppointmentsService = async (query: Record<string, any>) => {
   const { startDate, endDate } = query;
   const { where, options } = new QueryBuilder(query)
@@ -227,6 +255,7 @@ const updateAppointmentStatusService = async (
     },
     include: {
       doctor: true,
+      patient: true,
     },
   });
 
@@ -235,6 +264,23 @@ const updateAppointmentStatusService = async (
       throw new AppError(
         httpStatus.BAD_REQUEST,
         "This is not your appointment",
+      );
+  }
+
+  if (user?.role === UserRole.PATIENT) {
+    if (user?.email !== appointmentData.patient.email)
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        "This is not your appointment",
+      );
+
+    if (
+      appointmentData.status !== AppointmentStatus.SCHEDULED &&
+      status !== AppointmentStatus.CANCELED
+    )
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        `You are not allowed to change the ${appointmentData.status} appointment status`,
       );
   }
 
@@ -248,63 +294,64 @@ const updateAppointmentStatusService = async (
   });
 };
 
-
 const cancelUnpaidAppointmentsService = async () => {
-    const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000);
+  const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000);
 
-    const unPaidAppointments = await prisma.appointment.findMany({
+  const unPaidAppointments = await prisma.appointment.findMany({
+    where: {
+      createdAt: {
+        lte: thirtyMinAgo,
+      },
+      paymentStatus: PaymentStatus.UNPAID,
+    },
+  });
+
+  const appointmentIdsToCancel = unPaidAppointments.map(
+    (appointment) => appointment.id,
+  );
+
+  await prisma.$transaction(async (tnx) => {
+    await tnx.appointment.updateMany({
+      where: {
+        id: {
+          in: appointmentIdsToCancel,
+        },
+      },
+      data: {
+        status: AppointmentStatus.CANCELED,
+      },
+    });
+
+    await tnx.payment.deleteMany({
+      where: {
+        appointmentId: {
+          in: appointmentIdsToCancel,
+        },
+      },
+    });
+
+    // Free up doctor schedules
+    for (const unPaidAppointment of unPaidAppointments) {
+      await tnx.doctorSchedules.update({
         where: {
-            createdAt: {
-                lte: thirtyMinAgo
-            },
-            paymentStatus: PaymentStatus.UNPAID
-        }
-    })
+          doctorId_scheduleId: {
+            doctorId: unPaidAppointment.doctorId,
+            scheduleId: unPaidAppointment.scheduleId,
+          },
+        },
+        data: {
+          isBooked: false,
+        },
+      });
+    }
+  });
+};
 
-    const appointmentIdsToCancel = unPaidAppointments.map(appointment => appointment.id);
-
-    await prisma.$transaction(async (tnx) => {
-         
-        await tnx.appointment.updateMany({
-            where: {
-                id: {
-                    in: appointmentIdsToCancel
-                }
-            },
-            data: {
-                status: AppointmentStatus.CANCELED
-            }
-        })
-
-         
-        await tnx.payment.deleteMany({
-            where: {
-                appointmentId: {
-                    in: appointmentIdsToCancel
-                }
-            }
-        })
-
-        // Free up doctor schedules
-        for (const unPaidAppointment of unPaidAppointments) {
-            await tnx.doctorSchedules.update({
-                where: {
-                    doctorId_scheduleId: {
-                        doctorId: unPaidAppointment.doctorId,
-                        scheduleId: unPaidAppointment.scheduleId
-                    }
-                },
-                data: {
-                    isBooked: false
-                }
-            })
-        }
-    })
-}
 export const appointmentServices = {
   createAppointmentService,
   myAppointmentsService,
+  getSingleAppointmentService,
   getAppointmentsService,
   updateAppointmentStatusService,
-  cancelUnpaidAppointmentsService
+  cancelUnpaidAppointmentsService,
 };
