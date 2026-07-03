@@ -179,7 +179,7 @@ Patient Symptoms:
       },
     },
   });
-  return {specialties,doctors}; 
+  return { specialties, doctors };
 };
 
 const updateDoctorService = async (
@@ -255,8 +255,65 @@ const updateDoctorService = async (
   return newDoctor;
 };
 
+const getMyDoctorsService = async (
+  patientEmail: string,
+  query: Record<string, any>,
+) => {
+  const { page, limit } = query;
+
+  const queryBuilder = new QueryBuilder(query)
+    .search(["name", "email", "designation"])
+    .filter()
+    .sort()
+    .pagination()
+    .build();
+ 
+  const where: any = {
+    appointments: {
+      some: {
+        patient: {
+          email : patientEmail
+        },
+      },
+    },
+    ...queryBuilder.where,
+  };
+
+  const doctors = await prisma.doctor.findMany({
+    where,
+    ...queryBuilder.options,
+    include: {
+      doctorSpecialities: {
+        select: {
+          specialities: {
+            select: {
+              title: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  const total = await prisma.doctor.count({
+    where,
+  });
+
+  const limitNumber = Number(limit) || 10;
+  return {
+    meta: {
+      total,
+      page: Number(page) || 1,
+      limit: limitNumber,
+      totalPages: Math.ceil(total / limitNumber),
+    },
+    data: doctors,
+  };
+};
+
 export const doctorServices = {
   getDoctorsService,
   getAiSuggestedDoctorsService,
   updateDoctorService,
+  getMyDoctorsService,
 };

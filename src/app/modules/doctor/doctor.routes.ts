@@ -7,6 +7,12 @@ import { UserRole } from "@prisma/client";
 const router = Router();
 
 router.get(
+  "/my-doctors",
+  authentication(UserRole.PATIENT),
+  doctorControllers.getMyDoctorsController,
+);
+
+router.get(
   "/",
   validateRequest(doctorValidators.getDoctorsQueryValidation),
   doctorControllers.getDoctorsController,

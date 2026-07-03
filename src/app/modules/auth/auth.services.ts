@@ -67,7 +67,6 @@ const loginService = async (payload: { email: string; password: string }) => {
     email: user.email,
     role: user.role,
   };
-
   const tokens = getTokens(tokenPayload);
   let profileData;
   if (user.role === UserRole.PATIENT) {
