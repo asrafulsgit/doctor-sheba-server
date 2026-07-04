@@ -1,9 +1,7 @@
-import { addMinutes, addHours, format } from "date-fns";
 import { prisma } from "../../shared/prisma";
 import QueryBuilder from "../../utils/queryBuilder";
 import AppError from "../../errorHelpers/appError";
 import httpStatus from "http-status";
-import { AppointmentStatus, PaymentStatus } from "@prisma/client";
 
 const createDoctorScheduleService = async (
   email: string,
@@ -18,7 +16,7 @@ const createDoctorScheduleService = async (
       email,
     },
   });
-  
+
   const scheduleRecords = await prisma.schedule.findMany({
     where: {
       id: { in: schedules },
@@ -145,6 +143,19 @@ const getDoctorSchedulesService = async (
     }
   }
 
+  const doctorData = await prisma.doctor.findUniqueOrThrow({
+    where: {
+      id,
+    },
+    include: {
+      doctorSpecialities: {
+        include: {
+          specialities: true,
+        },
+      },
+    },
+  });
+
   const doctorSchedules = await prisma.doctorSchedules.findMany({
     where: {
       ...where,
@@ -171,7 +182,10 @@ const getDoctorSchedulesService = async (
       limit: limitNumber,
       totalPages: Math.ceil(total / limitNumber),
     },
-    data: doctorSchedules,
+    data: {
+      doctor: doctorData,
+      doctorSchedules,
+    },
   };
 };
 
@@ -219,5 +233,5 @@ export const doctorScheduleServices = {
   createDoctorScheduleService,
   getDoctorAvailableSchedulesService,
   getDoctorSchedulesService,
-  deleteDoctorScheduleService
+  deleteDoctorScheduleService,
 };

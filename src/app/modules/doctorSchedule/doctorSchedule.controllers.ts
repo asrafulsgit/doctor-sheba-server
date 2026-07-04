@@ -47,7 +47,8 @@ const getDoctorSchedulesController = catchAsync(
       statusCode: httpStatus.OK,
       success: true,
       message: "Doctor schedules fetched successfully!",
-      data: result,
+      data: result.data,
+      meta: result.meta,
     });
   },
 );
