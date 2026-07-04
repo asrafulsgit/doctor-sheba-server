@@ -16,8 +16,8 @@ export const createPaymentSession = async ({
   const session = await stripe.checkout.sessions.create({
     payment_method_types: ["card"],
     mode: "payment",
-    success_url: `${process.env.STRIPE_SUCCESS_URL}?appointmentId=${appointmentId}`,
-    cancel_url: process.env.STRIPE_CANCEL_URL,
+    success_url: `${process.env.STRIPE_SUCCESS_URL}?appointmentId=${appointmentId}&paymentId=${paymentId}`,
+    cancel_url: `${process.env.STRIPE_CANCEL_URL}?appointmentId=${appointmentId}&paymentId=${paymentId}`,
     metadata: {
       appointmentId,
       paymentId

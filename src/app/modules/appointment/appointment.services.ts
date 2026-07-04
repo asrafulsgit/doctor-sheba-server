@@ -187,6 +187,7 @@ const getSingleAppointmentService = async (user: JwtPayload, id: string) => {
       schedule: true,
       patient: true,
       doctor: true,
+      payments : true
     },
   });
 
@@ -256,6 +257,7 @@ const updateAppointmentStatusService = async (
     include: {
       doctor: true,
       patient: true,
+      schedule: true,
     },
   });
 
@@ -266,8 +268,8 @@ const updateAppointmentStatusService = async (
         "This is not your appointment",
       );
   }
-
-  if (user?.role === UserRole.PATIENT) {
+  const isPatient = user?.role === UserRole.PATIENT;
+  if (isPatient) {
     if (user?.email !== appointmentData.patient.email)
       throw new AppError(
         httpStatus.BAD_REQUEST,
@@ -284,7 +286,7 @@ const updateAppointmentStatusService = async (
       );
   }
 
-  return await prisma.appointment.update({
+  const appointment = await prisma.appointment.update({
     where: {
       id: appointmentId,
     },
@@ -292,6 +294,21 @@ const updateAppointmentStatusService = async (
       status,
     },
   });
+
+  if (isPatient) {
+    await prisma.doctorSchedules.update({
+      where: {
+        doctorId_scheduleId: {
+          doctorId: appointmentData.doctorId,
+          scheduleId: appointmentData.scheduleId,
+        },
+      },
+      data: {
+        isBooked: false,
+      },
+    });
+  }
+  return appointment;
 };
 
 const cancelUnpaidAppointmentsService = async () => {
