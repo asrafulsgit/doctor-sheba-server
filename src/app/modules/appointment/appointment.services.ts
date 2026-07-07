@@ -56,6 +56,24 @@ const createAppointmentService = async (
   }
 
   const videoCallingId = `VC-${uuidv4()}`;
+
+  const existingAppointment = await prisma.appointment.findFirst({
+    where: {
+      patientId: patient.id,
+      scheduleId: payload.scheduleId,
+      status: {
+        in: ["INPROGRESS", "SCHEDULED", "COMPLETED"],
+      },
+    },
+  });
+
+  if (existingAppointment) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      "You already have an active appointment for this schedule.",
+    );
+  }
+
   const newAppointment = await prisma.$transaction(async (tnx) => {
     const appointmentData = await tnx.appointment.create({
       data: {
@@ -187,7 +205,7 @@ const getSingleAppointmentService = async (user: JwtPayload, id: string) => {
       schedule: true,
       patient: true,
       doctor: true,
-      payments : true
+      payments: true,
     },
   });
 

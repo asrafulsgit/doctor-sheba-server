@@ -52,10 +52,12 @@ const getDoctorAvailableSchedulesService = async (
 ) => {
   const { startDate, endDate, page, limit } = query;
 
-  const queryBuilder = new QueryBuilder(query).sort().pagination().build();
+  const queryBuilder = new QueryBuilder({ ...query, sortOrder: "asc" })
+    .sort()
+    .pagination()
+    .build();
 
   const where: any = { ...queryBuilder.where };
-
   if (startDate || endDate) {
     where.startDateTime = {};
 
@@ -68,6 +70,12 @@ const getDoctorAvailableSchedulesService = async (
       end.setHours(23, 59, 59, 999);
       where.startDateTime.lte = end;
     }
+  }
+
+  if (!startDate) {
+    where.startDateTime = {
+      gte: new Date(),
+    };
   }
 
   const doctorSchedules = await prisma.doctorSchedules.findMany({

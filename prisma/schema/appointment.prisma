@@ -4,7 +4,7 @@ model Appointment {
     patient        Patient           @relation(fields: [patientId], references: [id])
     doctorId       String
     doctor         Doctor            @relation(fields: [doctorId], references: [id])
-    scheduleId     String            @unique
+    scheduleId     String            
     schedule       Schedule          @relation(fields: [scheduleId], references: [id])
     videoCallingId String
     status         AppointmentStatus @default(SCHEDULED)
