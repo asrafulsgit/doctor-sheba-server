@@ -43,7 +43,7 @@ const createPrescriptionService = async (
       appointmentId: appointment.id,
       doctorId: appointment.doctor.id,
       patientId: appointment.patient.id,
-      diagnosis : payload.diagnosis,
+      diagnosis: payload.diagnosis,
       instructions: payload.instructions,
       followUpDate: payload.followUpDate,
       medications: {
@@ -86,6 +86,7 @@ const getMyPrescriptionsService = async (
       appointment: true,
       patient: user.role === UserRole.DOCTOR,
       doctor: user.role === UserRole.PATIENT,
+      medications: true,
     },
   });
   const total = await prisma.prescription.count({
