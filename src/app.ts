@@ -12,7 +12,13 @@ import { createRateLimitMiddleware } from "./app/middlewares/rateLimiter";
 
 const app: Application = express();
 
-app.post("/webhook", raw({ type: "application/json" }), stripeWebhook);
+app.post(
+  ["/webhook", "/webhooks"],
+  raw({ type: "application/json" }),
+  (req: Request, res: Response) => {
+    return stripeWebhook(req, res);
+  },
+);
 app.set("trust proxy", 1);
 app.use(
   cors({

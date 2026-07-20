@@ -4,11 +4,7 @@ const sendResponse = <T>(res: Response, jsonData: {
     statusCode: number,
     success: boolean,
     message: string,
-    meta?: {
-        page: number,
-        limit: number,
-        total: number
-    },
+    meta?: Record<string, unknown>,
     data: T | null | undefined
 }) => {
     res.status(jsonData.statusCode).json({
