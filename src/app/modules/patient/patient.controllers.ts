@@ -31,12 +31,22 @@ const getPatientController = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const getPatientHealtProfileController = catchAsync(async (req: Request, res: Response) => {
+  const user = req.user as JwtPayload;
+  const data = await patientServices.getPatientHealthProfileService(user);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Patient health profile retrieved successfully",
+    data,
+  });
+});
+
 const updatePatientController = catchAsync(
   async (req: Request, res: Response) => {
     const user = req.user as JwtPayload;
-    const patientId = req.params.id as string;
     const patient = await patientServices.updatePatientService(
-      patientId,
       user,
       req.body,
     );
@@ -66,6 +76,7 @@ const deletePatientController = catchAsync(
 export const patientControllers = {
   getPatientsController,
   getPatientController,
+  getPatientHealtProfileController,
   updatePatientController,
   deletePatientController,
 };

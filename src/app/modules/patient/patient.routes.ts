@@ -12,13 +12,21 @@ router.get(
 );
 
 router.get(
+  "/health-profile",
+  authentication(UserRole.PATIENT),
+  patientControllers.getPatientHealtProfileController,
+);
+
+router.get(
   "/:id",
-  authentication(UserRole.PATIENT, UserRole.DOCTOR, UserRole.ADMIN),
+  authentication(UserRole.DOCTOR, UserRole.ADMIN),
   patientControllers.getPatientController,
 );
 
+
+
 router.patch(
-  "/:id",
+  "/",
   authentication(UserRole.PATIENT),
   patientControllers.updatePatientController,
 );
@@ -28,5 +36,7 @@ router.delete(
   authentication(UserRole.ADMIN),
   patientControllers.deletePatientController,
 );
+
+
 
 export const patientRouter = router;

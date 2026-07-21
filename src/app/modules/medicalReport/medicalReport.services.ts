@@ -6,27 +6,10 @@ import AppError from "../../errorHelpers/appError";
 import { prisma } from "../../shared/prisma";
 import QueryBuilder from "../../utils/queryBuilder";
 import {
-  CreateMedicalReportInput,
-  UpdateMedicalReportInput,
+  CreateMedicalReportInput, 
 } from "./medicalReport.interfaces";
 import { GetMyMedicalReportsQuery } from "./medicalReport.validation";
-
-const getPatientByUserEmail = async (user: JwtPayload) => {
-  const email = user.email as string;
-
-  const patient = await prisma.patient.findUnique({
-    where: { email },
-  });
-
-  if (!patient) {
-    throw new AppError(
-      httpStatus.NOT_FOUND,
-      "Patient profile not found for this account",
-    );
-  }
-
-  return patient;
-};
+import { getPatientByUserEmail } from "../../utils/getPatient";
 
 const getMyMedicalReportsService = async (
   user: JwtPayload,

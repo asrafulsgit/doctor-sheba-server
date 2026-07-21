@@ -5,6 +5,7 @@ import { IPatientUpdate } from "./patient.interface";
 import AppError from "../../errorHelpers/appError";
 import httpStatus from "http-status";
 import { JwtPayload } from "jsonwebtoken";
+import { getPatientByUserEmail } from "../../utils/getPatient";
 
 const getPatientsService = async (query: Record<string, any>) => {
   const queryBuilder = new QueryBuilder(query)
@@ -42,6 +43,17 @@ const getPatientsService = async (query: Record<string, any>) => {
   };
 };
 
+const getPatientHealthProfileService = async (user: JwtPayload) => {
+  const patient = await getPatientByUserEmail(user);
+  const result = await prisma.patientHealthData.findUniqueOrThrow({
+    where: {
+      patientId: patient.id,
+    },
+  });
+
+  return result;
+};
+
 const getPatientService = async (id: string) => {
   const result = await prisma.patient.findUniqueOrThrow({
     where: {
@@ -62,24 +74,12 @@ const getPatientService = async (id: string) => {
 };
 
 const updatePatientService = async (
-  id: string,
   user: JwtPayload,
   payload: Partial<IPatientUpdate>,
 ) => {
   const { patientHealthData, medicalReport, ...patientData } = payload;
-  
-  const patientInfo = await prisma.patient.findUniqueOrThrow({
-    where: {
-      id,
-    },
-  });
 
-  if (user.email !== patientInfo.email) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      "You cannot change other user data",
-    );
-  }
+  const patientInfo = await getPatientByUserEmail(user);
 
   if (patientInfo.isDeleted) {
     throw new AppError(
@@ -91,18 +91,18 @@ const updatePatientService = async (
   await prisma.$transaction(async (tnx) => {
     await tnx.patient.update({
       where: {
-        id,
+        id: patientInfo.id,
       },
       data: {
-        name : patientData.name,
-        address : patientData.address,
-        contactNumber : patientData.contactNumber 
+        name: patientData.name,
+        address: patientData.address,
+        contactNumber: patientData.contactNumber,
       },
       include: {
         patientHealthData: true,
         medicalReport: true,
       },
-    }); 
+    });
     if (patientHealthData) {
       await tnx.patientHealthData.upsert({
         where: {
@@ -157,6 +157,7 @@ const deletePatientService = async (id: string) => {
 export const patientServices = {
   getPatientsService,
   getPatientService,
+  getPatientHealthProfileService,
   updatePatientService,
   deletePatientService,
 };
