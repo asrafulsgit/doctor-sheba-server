@@ -2,6 +2,7 @@ import { patientControllers } from "./patient.controllers";
 import { authentication } from "../../middlewares/authentication";
 import { UserRole } from "@prisma/client";
 import { Router } from "express";
+import { multerUpload } from "../../config/multer";
 
 const router = Router();
 
@@ -12,7 +13,7 @@ router.get(
 );
 
 router.get(
-  "/health-profile",
+  "/profile",
   authentication(UserRole.PATIENT),
   patientControllers.getPatientHealtProfileController,
 );
@@ -28,6 +29,7 @@ router.get(
 router.patch(
   "/",
   authentication(UserRole.PATIENT),
+  multerUpload.single("avatar"),
   patientControllers.updatePatientController,
 );
 

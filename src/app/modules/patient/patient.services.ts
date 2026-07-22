@@ -6,6 +6,7 @@ import AppError from "../../errorHelpers/appError";
 import httpStatus from "http-status";
 import { JwtPayload } from "jsonwebtoken";
 import { getPatientByUserEmail } from "../../utils/getPatient";
+import { deleteCloudinaryImage } from "../../config/cloudinary";
 
 const getPatientsService = async (query: Record<string, any>) => {
   const queryBuilder = new QueryBuilder(query)
@@ -44,10 +45,12 @@ const getPatientsService = async (query: Record<string, any>) => {
 };
 
 const getPatientHealthProfileService = async (user: JwtPayload) => {
-  const patient = await getPatientByUserEmail(user);
-  const result = await prisma.patientHealthData.findUniqueOrThrow({
+  const result = await prisma.patient.findUniqueOrThrow({
     where: {
-      patientId: patient.id,
+      email: user.email,
+    },
+    include: {
+      patientHealthData: true,
     },
   });
 
@@ -76,11 +79,12 @@ const getPatientService = async (id: string) => {
 const updatePatientService = async (
   user: JwtPayload,
   payload: Partial<IPatientUpdate>,
+  file?: Express.Multer.File,
 ) => {
   const { patientHealthData, medicalReport, ...patientData } = payload;
 
   const patientInfo = await getPatientByUserEmail(user);
-
+  const previousPhoto = patientInfo.profilePhoto;
   if (patientInfo.isDeleted) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
@@ -95,6 +99,7 @@ const updatePatientService = async (
       },
       data: {
         name: patientData.name,
+        profilePhoto: file?.path,
         address: patientData.address,
         contactNumber: patientData.contactNumber,
       },
@@ -119,6 +124,10 @@ const updatePatientService = async (
       });
     }
   });
+
+  if (previousPhoto) {
+    await deleteCloudinaryImage(previousPhoto);
+  }
 
   const responseData = await prisma.patient.findUnique({
     where: {
