@@ -4,9 +4,18 @@ import { prisma } from "../../shared/prisma";
 
 const now = new Date();
 const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+const startOfToday = new Date(now);
+startOfToday.setHours(0, 0, 0, 0);
+const endOfToday = new Date(now);
+endOfToday.setHours(23, 59, 59, 999);
 
 const getPatientMetaDataService = async (user: JwtPayload) => {
   let metaData = getPatientMetaData(user);
+  return metaData;
+};
+
+const getDoctorMetaDataService = async (user: JwtPayload) => {
+  let metaData = getDoctorMetaData(user);
   return metaData;
 };
 
@@ -76,32 +85,32 @@ const getPatientMetaData = async (user: JwtPayload) => {
       include: {
         doctor: true,
         appointment: { include: { schedule: true } },
-        medications : true
+        medications: true,
       },
     }),
   ]);
 
- const calculateBMI = (
-  height?: string | null,
-  weight?: string | null,
-): number | null => {
-  if (!height || !weight) return null;
+  const calculateBMI = (
+    height?: string | null,
+    weight?: string | null,
+  ): number | null => {
+    if (!height || !weight) return null;
 
-  let h = Number(height);
-  const w = Number(weight);
+    let h = Number(height);
+    const w = Number(weight);
 
-  if (Number.isNaN(h) || Number.isNaN(w) || h <= 0 || w <= 0) {
-    return null;
-  }
+    if (Number.isNaN(h) || Number.isNaN(w) || h <= 0 || w <= 0) {
+      return null;
+    }
 
-  // Heights greater than 3 are probably centimeters.
-  if (h > 3) {
-    h = h / 100;
-  }
+    // Heights greater than 3 are probably centimeters.
+    if (h > 3) {
+      h = h / 100;
+    }
 
-  const bmi = w / (h * h);
-  return Math.round(bmi * 10) / 10;
-};
+    const bmi = w / (h * h);
+    return Math.round(bmi * 10) / 10;
+  };
 
   const healthSummary = healthData
     ? {
@@ -127,7 +136,7 @@ const getPatientMetaData = async (user: JwtPayload) => {
     doctorName: rx.doctor?.name ?? null,
     date: rx.createdAt,
     instructions: rx.instructions,
-    followUpDate: rx.followUpDate, 
+    followUpDate: rx.followUpDate,
     diagnosis: rx.diagnosis,
     medications: rx.medications,
   }));
@@ -181,44 +190,88 @@ const getDoctorMetaData = async (user: JwtPayload) => {
     },
   });
 
-  const appointmentCount = await prisma.appointment.count({
-    where: {
-      doctorId: doctorData.id,
-    },
-  });
-
-  const patientCount = await prisma.appointment.groupBy({
-    by: ["patientId"],
-    _count: {
-      id: true,
-    },
-  });
-
-  const reviewCount = await prisma.review.count({
-    where: {
-      doctorId: doctorData.id,
-    },
-  });
-
-  const totalRevenue = await prisma.payment.aggregate({
-    _sum: {
-      amount: true,
-    },
-    where: {
-      appointment: {
+  const [
+    appointmentCount,
+    patientCount,
+    reviewCount,
+    totalRevenue,
+    pendingAppointmentCount,
+    todaysAppointments,
+    recentReviews,
+    appointmentStatusDistribution,
+  ] = await Promise.all([
+    await prisma.appointment.count({
+      where: {
         doctorId: doctorData.id,
       },
-      status: PaymentStatus.PAID,
-    },
-  });
-
-  const appointmentStatusDistribution = await prisma.appointment.groupBy({
-    by: ["status"],
-    _count: { id: true },
-    where: {
-      doctorId: doctorData.id,
-    },
-  });
+    }),
+    await prisma.appointment.groupBy({
+      by: ["patientId"],
+      _count: {
+        id: true,
+      },
+    }),
+    await prisma.review.count({
+      where: {
+        doctorId: doctorData.id,
+      },
+    }),
+    await prisma.payment.aggregate({
+      _sum: {
+        amount: true,
+      },
+      where: {
+        appointment: {
+          doctorId: doctorData.id,
+        },
+        status: PaymentStatus.PAID,
+      },
+    }),
+    await prisma.appointment.count({
+      where: {
+        doctorId: doctorData.id,
+        status: AppointmentStatus.SCHEDULED,
+      },
+    }),
+    await prisma.appointment.findMany({
+      where: {
+        doctorId: doctorData.id,
+        status: AppointmentStatus.SCHEDULED,
+        schedule: { startDateTime: { gte: startOfToday, lte: endOfToday } },
+      },
+      orderBy: { schedule: { startDateTime: "asc" } },
+      take: 3,
+      include: {
+        doctor: {
+          include: {
+            doctorSpecialities: { include: { specialities: true } },
+          },
+        },
+        schedule: true,
+      },
+    }),
+    await prisma.review.findMany({
+      where: {
+        doctorId: doctorData.id,
+      },
+      orderBy: { createdAt: "asc" },
+      take: 3,
+      include: {
+        patient: {
+          select: {
+            name: true,
+          },
+        },
+      },
+    }),
+    await prisma.appointment.groupBy({
+      by: ["status"],
+      _count: { id: true },
+      where: {
+        doctorId: doctorData.id,
+      },
+    }),
+  ]);
 
   const formattedAppointmentStatusDistribution =
     appointmentStatusDistribution.map(({ status, _count }) => ({
@@ -229,58 +282,15 @@ const getDoctorMetaData = async (user: JwtPayload) => {
   return {
     appointmentCount,
     reviewCount,
+    averageRating: doctorData.averageRating,
+    pendingAppointmentCount,
     patientCount: patientCount.length,
-    totalRevenue,
+    totalRevenue : totalRevenue._sum.amount,
+    todaysAppointments,
+    recentReviews,
     formattedAppointmentStatusDistribution,
   };
 };
-
-// const getPatientMetaData = async (user: JwtPayload) => {
-//   const patientData = await prisma.patient.findUniqueOrThrow({
-//     where: {
-//       email: user?.email,
-//     },
-//   });
-
-//   const appointmentCount = await prisma.appointment.count({
-//     where: {
-//       patientId: patientData.id,
-//     },
-//   });
-
-//   const prescriptionCount = await prisma.prescription.count({
-//     where: {
-//       patientId: patientData.id,
-//     },
-//   });
-
-//   const reviewCount = await prisma.review.count({
-//     where: {
-//       patientId: patientData.id,
-//     },
-//   });
-
-//   const appointmentStatusDistribution = await prisma.appointment.groupBy({
-//     by: ["status"],
-//     _count: { id: true },
-//     where: {
-//       patientId: patientData.id,
-//     },
-//   });
-
-//   const formattedAppointmentStatusDistribution =
-//     appointmentStatusDistribution.map(({ status, _count }) => ({
-//       status,
-//       count: Number(_count.id),
-//     }));
-
-//   return {
-//     appointmentCount,
-//     prescriptionCount,
-//     reviewCount,
-//     formattedAppointmentStatusDistribution,
-//   };
-// };
 
 const getBarChartData = async () => {
   const appointmentCountByMonth: { month: Date; count: bigint }[] =
@@ -312,4 +322,5 @@ const getPieChartData = async () => {
 
 export const metaServices = {
   getPatientMetaDataService,
+  getDoctorMetaDataService,
 };

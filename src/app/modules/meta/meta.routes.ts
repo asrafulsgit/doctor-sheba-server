@@ -11,4 +11,10 @@ router.get(
   metaControllers.getPatientMetaDataController,
 );
 
+router.get(
+  "/doctor",
+  authentication(UserRole.DOCTOR),
+  metaControllers.getDoctorMetaDataController,
+);
+
 export const metaRouter = router;

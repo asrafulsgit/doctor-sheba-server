@@ -19,6 +19,21 @@ const getPatientMetaDataController = catchAsync(
   },
 );
 
+const getDoctorMetaDataController = catchAsync(
+  async (req: Request, res: Response) => {
+    const user = req.user as JwtPayload;
+    const result = await metaServices.getDoctorMetaDataService(user);
+
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: "Doctor Meta data retrieved successfully!",
+      data: result,
+    });
+  },
+);
+
 export const metaControllers = {
   getPatientMetaDataController,
+  getDoctorMetaDataController
 };
