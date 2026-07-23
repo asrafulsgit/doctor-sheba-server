@@ -199,6 +199,7 @@ const getDoctorMetaData = async (user: JwtPayload) => {
     todaysAppointments,
     recentReviews,
     appointmentStatusDistribution,
+    last7DaysCompletedAppointments,
   ] = await Promise.all([
     await prisma.appointment.count({
       where: {
@@ -242,11 +243,8 @@ const getDoctorMetaData = async (user: JwtPayload) => {
       orderBy: { schedule: { startDateTime: "asc" } },
       take: 3,
       include: {
-        doctor: {
-          include: {
-            doctorSpecialities: { include: { specialities: true } },
-          },
-        },
+        patient: true,
+        doctor: true,
         schedule: true,
       },
     }),
@@ -271,6 +269,17 @@ const getDoctorMetaData = async (user: JwtPayload) => {
         doctorId: doctorData.id,
       },
     }),
+    await prisma.$queryRaw<Array<{ day: string; count: bigint }>>`
+      SELECT LOWER(TO_CHAR("updatedAt"::date, 'Dy')) AS day,
+             CAST(COUNT(*) AS INTEGER) AS count
+      FROM "appointments"
+      WHERE "status" = 'COMPLETED'
+        AND "doctorId" = ${doctorData.id}
+        AND "updatedAt" >= CURRENT_DATE - INTERVAL '6 days'
+        AND "updatedAt" < CURRENT_DATE + INTERVAL '1 day'
+      GROUP BY "updatedAt"::date
+      ORDER BY "updatedAt"::date ASC
+    `,
   ]);
 
   const formattedAppointmentStatusDistribution =
@@ -279,15 +288,34 @@ const getDoctorMetaData = async (user: JwtPayload) => {
       count: Number(_count.id),
     }));
 
+  const formattedLast7DaysCompletedAppointments = Array.from(
+    { length: 7 },
+    (_, index) => {
+      const dayDate = new Date(now);
+      dayDate.setDate(now.getDate() - (6 - index));
+      const day = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][dayDate.getDay()];
+     
+      const existing = last7DaysCompletedAppointments.find(
+        (item) => item.day.toLowerCase() === day,
+      );
+
+      return {
+        day : day.charAt(0).toUpperCase() + day.slice(1,day.length),
+        count: Number(existing?.count ?? 0),
+      };
+    },
+  );
+
   return {
     appointmentCount,
     reviewCount,
     averageRating: doctorData.averageRating,
     pendingAppointmentCount,
     patientCount: patientCount.length,
-    totalRevenue : totalRevenue._sum.amount,
+    totalRevenue: totalRevenue._sum.amount,
     todaysAppointments,
     recentReviews,
+    last7DaysCompletedAppointments: formattedLast7DaysCompletedAppointments,
     formattedAppointmentStatusDistribution,
   };
 };
