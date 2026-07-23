@@ -140,6 +140,38 @@ const myAppointmentsService = async (
       email: user.email,
     };
   }
+ 
+  if (query.searchTerm) {
+    const searchTerm = query.searchTerm;
+
+    let relationField: "patient" | "doctor" | null = null;
+
+    if (user.role === UserRole.PATIENT) {
+      relationField = "doctor";
+    } else if (user.role === UserRole.DOCTOR) {
+      relationField = "patient";
+    }
+
+    if (relationField) {
+      where.AND = [
+        ...(where.AND || []),
+        {
+          OR: [
+            {
+              [relationField]: {
+                name: { contains: searchTerm, mode: "insensitive" },
+              },
+            },
+            {
+              [relationField]: {
+                email: { contains: searchTerm, mode: "insensitive" },
+              },
+            },
+          ],
+        },
+      ];
+    }
+  }
 
   if (startDate || endDate) {
     where.schedule = where.schedule || {};
