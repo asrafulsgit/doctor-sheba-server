@@ -17,8 +17,16 @@ router.get(
   validateRequest(doctorValidators.getDoctorsQueryValidation),
   doctorControllers.getDoctorsController,
 );
+
+router.get(
+  "/patient-records",
+  authentication(UserRole.DOCTOR),
+  doctorControllers.getPatientRecordsController,
+);
+
 router.get(
   "/:id",
+  validateRequest(doctorValidators.paramValidation),
   authentication(UserRole.PATIENT,UserRole.DOCTOR,UserRole.ADMIN),
   doctorControllers.getDoctorController,
 );
@@ -31,6 +39,7 @@ router.post(
 
 router.patch(
   "/:id",
+  validateRequest(doctorValidators.paramValidation),
   authentication(UserRole.DOCTOR, UserRole.ADMIN),
   doctorControllers.updateDoctorController,
 );

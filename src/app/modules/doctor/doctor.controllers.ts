@@ -27,6 +27,24 @@ const getDoctorController = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const getPatientRecordsController = catchAsync(
+  async (req: Request, res: Response) => {
+    const user = req.user as JwtPayload;
+
+    const result = await doctorServices.getPatientRecordsService(
+      user,
+      req.query,
+    );
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: "Patient records retrieved successfully",
+      data: result.data,
+      meta: result.meta,
+    });
+  },
+);
+
 const getAiSuggestedDoctorsController = catchAsync(
   async (req: Request, res: Response) => {
     const text = req.body.text;
@@ -74,6 +92,7 @@ const getMyDoctorsController = catchAsync(
 export const doctorControllers = {
   getDoctorsController,
   getDoctorController,
+  getPatientRecordsController,
   getAiSuggestedDoctorsController,
   updateDoctorController,
   getMyDoctorsController,

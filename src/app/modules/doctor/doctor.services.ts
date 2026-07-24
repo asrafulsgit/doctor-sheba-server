@@ -18,7 +18,6 @@ const getDoctorsService = async (query: Record<string, any>) => {
     .build();
 
   const where: any = { ...queryBuilder.where };
-
   if (specialty) {
     where.doctorSpecialities = {
       some: {
@@ -49,17 +48,6 @@ const getDoctorsService = async (query: Record<string, any>) => {
     },
     ...queryBuilder.options,
     include: {
-      doctorSchedules: {
-        select: {
-          isBooked: true,
-          schedule: {
-            select: {
-              startDateTime: true,
-              endDateTime: true,
-            },
-          },
-        },
-      },
       doctorSpecialities: {
         select: {
           specialities: {
@@ -110,7 +98,7 @@ const getDoctorService = async (id: string) => {
       patient: {
         select: {
           name: true,
-          profilePhoto : true
+          profilePhoto: true,
         },
       },
     },
@@ -119,6 +107,56 @@ const getDoctorService = async (id: string) => {
   return {
     doctor,
     reviews,
+  };
+};
+
+const getPatientRecordsService = async (
+  user: JwtPayload,
+  query: Record<string, any>,
+) => {
+  const { page, limit } = query;
+
+  const queryBuilder = new QueryBuilder(query)
+    .search(["name", "email", "address","contactNumber"])
+    .filter()
+    .sort()
+    .pagination()
+    .build();
+  const where: any = {
+    appointments: {
+      some: {
+        doctor: {
+          email: user.email,
+        },
+      },
+    },
+    ...queryBuilder.where,
+  };
+
+
+  const patients = await prisma.patient.findMany({
+    where,
+    ...queryBuilder.options,
+    include: {
+      medicalReport: true,
+      patientHealthData: true,
+      prescriptions: true,
+    },
+  });
+
+  const total = await prisma.patient.count({
+    where,
+  });
+
+  const limitNumber = Number(limit) || 10;
+  return {
+    meta: {
+      total,
+      page: Number(page) || 1,
+      limit: limitNumber,
+      totalPages: Math.ceil(total / limitNumber),
+    },
+    data: patients,
   };
 };
 
@@ -293,7 +331,7 @@ const getMyDoctorsService = async (
   const { page, limit } = query;
 
   const queryBuilder = new QueryBuilder(query)
-    .search(["name", "email", "designation"])
+    .search(["name", "email", "designation","address"])
     .filter()
     .sort()
     .pagination()
@@ -345,6 +383,7 @@ const getMyDoctorsService = async (
 export const doctorServices = {
   getDoctorsService,
   getDoctorService,
+  getPatientRecordsService,
   getAiSuggestedDoctorsService,
   updateDoctorService,
   getMyDoctorsService,

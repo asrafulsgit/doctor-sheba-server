@@ -5,6 +5,11 @@ const getAiSuggestedDoctorsValidationSchema = z.object({
     text: z.string().min(1, { message: "Input is required" }),
   }),
 });
+const paramValidation = z.object({
+  params: z.object({
+    id: z.string().trim().uuid("Invalid medical report ID."),
+  }),
+});
 
 const getDoctorsQueryValidation = z.object({
   query: z.object({
@@ -22,5 +27,6 @@ const getDoctorsQueryValidation = z.object({
 
 export const doctorValidators = {
   getAiSuggestedDoctorsValidationSchema,
-  getDoctorsQueryValidation
+  getDoctorsQueryValidation,
+  paramValidation
 };
