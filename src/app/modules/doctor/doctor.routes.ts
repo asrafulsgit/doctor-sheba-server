@@ -25,6 +25,13 @@ router.get(
 );
 
 router.get(
+  "/patient-records/:id",
+  validateRequest(doctorValidators.paramValidation),
+  authentication(UserRole.DOCTOR),
+  doctorControllers.getPatientRecordController,
+);
+
+router.get(
   "/:id",
   validateRequest(doctorValidators.paramValidation),
   authentication(UserRole.PATIENT,UserRole.DOCTOR,UserRole.ADMIN),

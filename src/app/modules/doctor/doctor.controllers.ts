@@ -45,6 +45,20 @@ const getPatientRecordsController = catchAsync(
   },
 );
 
+const getPatientRecordController = catchAsync(
+  async (req: Request, res: Response) => {
+    const user = req.user as JwtPayload;
+    const id = req.params.id as string;
+    const result = await doctorServices.getPatientRecordService(user, id);
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: "Patient record retrieved successfully",
+      data: result,
+    });
+  },
+);
+
 const getAiSuggestedDoctorsController = catchAsync(
   async (req: Request, res: Response) => {
     const text = req.body.text;
@@ -93,6 +107,7 @@ export const doctorControllers = {
   getDoctorsController,
   getDoctorController,
   getPatientRecordsController,
+  getPatientRecordController,
   getAiSuggestedDoctorsController,
   updateDoctorController,
   getMyDoctorsController,

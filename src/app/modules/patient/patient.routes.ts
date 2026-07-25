@@ -3,6 +3,8 @@ import { authentication } from "../../middlewares/authentication";
 import { UserRole } from "@prisma/client";
 import { Router } from "express";
 import { multerUpload } from "../../config/multer";
+import validateRequest from "../../middlewares/validateRequest";
+import { patientValidators } from "./patient.validation";
 
 const router = Router();
 
@@ -20,11 +22,10 @@ router.get(
 
 router.get(
   "/:id",
+  validateRequest(patientValidators.paramValidation),
   authentication(UserRole.DOCTOR, UserRole.ADMIN),
   patientControllers.getPatientController,
 );
-
-
 
 router.patch(
   "/",
@@ -35,6 +36,7 @@ router.patch(
 
 router.delete(
   "/:id",
+  validateRequest(patientValidators.paramValidation),
   authentication(UserRole.ADMIN),
   patientControllers.deletePatientController,
 );

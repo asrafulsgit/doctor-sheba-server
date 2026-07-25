@@ -5,7 +5,7 @@ import QueryBuilder from "../../utils/queryBuilder";
 import httpStatus from "http-status";
 import { IUpdateDoctor } from "./doctor.interfaces";
 import { JwtPayload } from "jsonwebtoken";
-import { UserRole, UserStatus } from "@prisma/client";
+import { AppointmentStatus, Prisma, UserRole } from "@prisma/client";
 
 const getDoctorsService = async (query: Record<string, any>) => {
   const { specialty, maxFee, minFee, page, limit } = query;
@@ -117,36 +117,60 @@ const getPatientRecordsService = async (
   const { page, limit } = query;
 
   const queryBuilder = new QueryBuilder(query)
-    .search(["name", "email", "address","contactNumber"])
+    .search(["name", "email", "address", "contactNumber"])
     .filter()
     .sort()
     .pagination()
     .build();
+
+  const appointmentFilter = {
+    doctor: {
+      email: user.email,
+    },
+  };
   const where: any = {
     appointments: {
-      some: {
-        doctor: {
-          email: user.email,
-        },
-      },
+      some: appointmentFilter,
     },
     ...queryBuilder.where,
   };
 
+  const patientInclude = {
+    patientHealthData: true,
+    appointments: {
+      where: { ...appointmentFilter, status: AppointmentStatus.COMPLETED },
+      orderBy: { schedule: { startDateTime: Prisma.SortOrder.desc } },
+      take: 1,
+      select: {
+        schedule: {
+          select: { startDateTime: true },
+        },
+      },
+    },
+    _count: {
+      select: {
+        appointments: {
+          where: { ...appointmentFilter, status: AppointmentStatus.COMPLETED },
+        },
+      },
+    },
+  };
 
-  const patients = await prisma.patient.findMany({
+  const patients = (await prisma.patient.findMany({
     where,
     ...queryBuilder.options,
-    include: {
-      medicalReport: true,
-      patientHealthData: true,
-      prescriptions: true,
-    },
-  });
+    include: patientInclude,
+  })) as Prisma.PatientGetPayload<{ include: typeof patientInclude }>[];
 
   const total = await prisma.patient.count({
     where,
   });
+
+  const data = patients.map(({ appointments, _count, ...patient }) => ({
+    ...patient,
+    lastVisit: appointments[0]?.schedule?.startDateTime ?? null,
+    totalVisits: _count.appointments,
+  }));
 
   const limitNumber = Number(limit) || 10;
   return {
@@ -156,8 +180,75 @@ const getPatientRecordsService = async (
       limit: limitNumber,
       totalPages: Math.ceil(total / limitNumber),
     },
-    data: patients,
+    data,
   };
+};
+
+const getPatientRecordService = async (user: JwtPayload, patientId: string) => {
+  const appointmentFilter = {
+    doctor: {
+      email: user.email,
+    },
+  };
+  const where: any = {
+    id: patientId,
+    appointments: {
+      some: appointmentFilter,
+    },
+  };
+
+  const patientInclude = {
+    prescriptions: true,
+    medicalReport: true,
+    patientHealthData: true,
+    appointments: {
+      where: { status: AppointmentStatus.COMPLETED },
+      orderBy: { schedule: { startDateTime: Prisma.SortOrder.desc } },
+      take: 1,
+      select: {
+        doctor: {
+          select: {
+            name: true,
+            doctorSpecialities: {
+              select: {
+                specialities: {
+                  select: {
+                    title: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        schedule: {
+          select: { startDateTime: true },
+        },
+      },
+    },
+    _count: {
+      select: {
+        appointments: {
+          where: { status: AppointmentStatus.COMPLETED },
+        },
+      },
+    },
+  };
+
+  const patient = (await prisma.patient.findFirstOrThrow({
+    where,
+    include: patientInclude,
+  })) as Prisma.PatientGetPayload<{ include: typeof patientInclude }>;
+
+  const { appointments, _count, ...rest } = patient;
+
+  const data = {
+    ...rest,
+    lastVisit: appointments[0]?.schedule?.startDateTime ?? null,
+    totalVisits: _count.appointments,
+    lastConsultant: appointments[0].doctor,
+  };
+
+  return data;
 };
 
 const getAiSuggestedDoctorsService = async (text: string) => {
@@ -331,7 +422,7 @@ const getMyDoctorsService = async (
   const { page, limit } = query;
 
   const queryBuilder = new QueryBuilder(query)
-    .search(["name", "email", "designation","address"])
+    .search(["name", "email", "designation", "address"])
     .filter()
     .sort()
     .pagination()
@@ -384,6 +475,7 @@ export const doctorServices = {
   getDoctorsService,
   getDoctorService,
   getPatientRecordsService,
+  getPatientRecordService,
   getAiSuggestedDoctorsService,
   updateDoctorService,
   getMyDoctorsService,
