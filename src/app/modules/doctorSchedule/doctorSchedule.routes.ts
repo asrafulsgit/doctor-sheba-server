@@ -12,6 +12,12 @@ router.get(
   doctorScheduleControllers.getDoctorAvailableSchedulesController
 );
 
+router.get(
+  "/scheduled",
+  authentication(UserRole.DOCTOR),
+  doctorScheduleControllers.getDoctorSceduledSchedulesController
+);
+
 // get doctor schedules
 router.get(
     '/:id',

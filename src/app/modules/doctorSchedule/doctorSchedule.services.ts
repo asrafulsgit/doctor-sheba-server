@@ -50,9 +50,8 @@ const getDoctorAvailableSchedulesService = async (
   email: string,
   query: Record<string, any>,
 ) => {
-  const { startDate, endDate, page, limit } = query;
-
-  const queryBuilder = new QueryBuilder({ ...query, sortOrder: "asc" })
+  const { startDate, endDate, page, limit = 30 } = query;
+  const queryBuilder = new QueryBuilder({ ...query, limit, sortOrder: "asc" })
     .sort()
     .pagination()
     .build();
@@ -83,6 +82,11 @@ const getDoctorAvailableSchedulesService = async (
       doctor: {
         email,
       },
+      schedule: {
+        startDateTime: {
+          gte: new Date(),
+        },
+      },
     },
     select: {
       scheduleId: true,
@@ -110,7 +114,78 @@ const getDoctorAvailableSchedulesService = async (
     },
   });
 
-  const limitNumber = Number(limit) || 10;
+  const limitNumber = Number(limit) || 30;
+  return {
+    meta: {
+      total,
+      page: Number(page) || 1,
+      limit: limitNumber,
+      totalPages: Math.ceil(total / limitNumber),
+    },
+    data: schedules,
+  };
+};
+
+const getDoctorScheduledSchedulesService = async (
+  email: string,
+  query: Record<string, any>,
+) => {
+  const { startDate, endDate, page, limit = 30 } = query;
+
+  const queryBuilder = new QueryBuilder({ ...query, limit, sortOrder: "asc" })
+    .sort()
+    .pagination()
+    .build();
+
+  const where: any = { ...queryBuilder.where };
+  where.schedule = where.schedule ?? {};
+  if (startDate || endDate) {
+    where.schedule.startDateTime = {};
+
+    if (startDate) {
+      where.schedule.startDateTime.gte = new Date(startDate);
+    }
+
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      where.schedule.startDateTime.lte = end;
+    }
+  }
+
+  if (!startDate) {
+    where.schedule.startDateTime = {
+      gte: new Date(),
+    };
+  }
+
+  const doctorSchedules = await prisma.doctorSchedules.findMany({
+    where: {
+      doctor: {
+        email,
+      },
+      ...where,
+    },
+    include: {
+      schedule: true,
+    },
+  });
+
+  const schedules = doctorSchedules.map(({ schedule, ...rest }) => ({
+    ...schedule,
+    isBooked: rest.isBooked,
+  }));
+
+  const total = await prisma.doctorSchedules.count({
+    where: {
+      doctor: {
+        email,
+      },
+      ...where,
+    },
+  });
+
+  const limitNumber = Number(limit) || 30;
   return {
     meta: {
       total,
@@ -240,6 +315,7 @@ const deleteDoctorScheduleService = async (
 export const doctorScheduleServices = {
   createDoctorScheduleService,
   getDoctorAvailableSchedulesService,
+  getDoctorScheduledSchedulesService,
   getDoctorSchedulesService,
   deleteDoctorScheduleService,
 };

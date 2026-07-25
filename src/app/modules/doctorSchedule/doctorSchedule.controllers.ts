@@ -34,6 +34,23 @@ const getDoctorAvailableSchedulesController = catchAsync(
     });
   },
 );
+const getDoctorSceduledSchedulesController = catchAsync(
+  async (req: Request, res: Response) => {
+    const email = req.user.email as string;
+    const schedules =
+      await doctorScheduleServices.getDoctorScheduledSchedulesService(
+        email,
+        req.query,
+      );
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: "Doctor scheduled schedules retrieved successfully",
+      data: schedules.data,
+      meta: schedules.meta,
+    });
+  },
+);
 
 const getDoctorSchedulesController = catchAsync(
   async (req: Request, res: Response) => {
@@ -74,6 +91,7 @@ const deleteDoctorScheduleController = catchAsync(
 export const doctorScheduleControllers = {
   createDoctorScheduleController,
   getDoctorAvailableSchedulesController,
+  getDoctorSceduledSchedulesController,
   getDoctorSchedulesController,
   deleteDoctorScheduleController,
 };
