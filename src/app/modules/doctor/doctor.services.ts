@@ -198,7 +198,16 @@ const getPatientRecordService = async (user: JwtPayload, patientId: string) => {
   };
 
   const patientInclude = {
-    prescriptions: true,
+    prescriptions: {
+      include: {
+        doctor: {
+          select: {
+            name: true,
+          },
+        },
+        medications: true,
+      }
+    },
     medicalReport: true,
     patientHealthData: true,
     appointments: {
