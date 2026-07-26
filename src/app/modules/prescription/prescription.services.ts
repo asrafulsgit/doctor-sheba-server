@@ -59,7 +59,7 @@ const getMyPrescriptionsService = async (
   user: JwtPayload,
   query: Record<string, any>,
 ) => {
-  const { page, limit } = query;
+  const { page, limit, searchTerm } = query;
 
   const queryBuilder = new QueryBuilder(query).sort().pagination().build();
 
@@ -75,6 +75,27 @@ const getMyPrescriptionsService = async (
     where.doctor = {
       email: user.email,
     };
+  }
+
+  if (searchTerm) {
+    let relationField: "patient" | "doctor" | null = null;
+
+    if (user.role === UserRole.PATIENT) {
+      relationField = "doctor";
+    } else if (user.role === UserRole.DOCTOR) {
+      relationField = "patient";
+    }
+
+    if (relationField) {
+      where.AND = [
+        ...(where.AND || []),
+        {
+          [relationField]: {
+            name: { contains: searchTerm, mode: "insensitive" },
+          },
+        },
+      ];
+    }
   }
 
   const prescriptions = await prisma.prescription.findMany({

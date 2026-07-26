@@ -2,6 +2,7 @@ import { prisma } from "../../shared/prisma";
 import QueryBuilder from "../../utils/queryBuilder";
 import AppError from "../../errorHelpers/appError";
 import httpStatus from "http-status";
+import { Prisma } from "@prisma/client";
 
 const createDoctorScheduleService = async (
   email: string,
@@ -130,20 +131,20 @@ const getDoctorScheduledSchedulesService = async (
   email: string,
   query: Record<string, any>,
 ) => {
-  const { startDate, endDate, page, limit = 30 } = query;
+  const { startDate, endDate, page, limit = 30, sortedBy, sortOrder } = query;
 
-  const queryBuilder = new QueryBuilder({ ...query, limit, sortOrder: "asc" })
-    .sort()
-    .pagination()
-    .build();
+   
+  const where: any = {
+    doctor: { email },
+  };
 
-  const where: any = { ...queryBuilder.where };
-  where.schedule = where.schedule ?? {};
-  if (startDate || endDate) {
-    where.schedule.startDateTime = {};
+  if (startDate || endDate || !startDate) {
+    where.schedule = { startDateTime: {} };
 
     if (startDate) {
       where.schedule.startDateTime.gte = new Date(startDate);
+    } else {
+      where.schedule.startDateTime.gte = new Date();
     }
 
     if (endDate) {
@@ -153,39 +154,41 @@ const getDoctorScheduledSchedulesService = async (
     }
   }
 
-  if (!startDate) {
-    where.schedule.startDateTime = {
-      gte: new Date(),
-    };
-  }
+  const orderBy = sortedBy
+    ? {
+        schedule: {
+          [sortedBy]: (sortOrder === "desc"
+            ? "desc"
+            : "asc") as Prisma.SortOrder,
+        },
+      }
+    : {
+        schedule: {
+          startDateTime: "asc" as Prisma.SortOrder,
+        },
+      };
 
-  const doctorSchedules = await prisma.doctorSchedules.findMany({
-    where: {
-      doctor: {
-        email,
-      },
-      ...where,
-    },
-    include: {
-      schedule: true,
-    },
-  });
-
-  const schedules = doctorSchedules.map(({ schedule, ...rest }) => ({
-    ...schedule,
-    isBooked: rest.isBooked,
-  }));
-
-  const total = await prisma.doctorSchedules.count({
-    where: {
-      doctor: {
-        email,
-      },
-      ...where,
-    },
-  });
-
+  const pageNumber = Number(page) || 1;
   const limitNumber = Number(limit) || 30;
+  const skip = (pageNumber - 1) * limitNumber;
+
+  const [doctorSchedules, total] = await Promise.all([
+    prisma.doctorSchedules.findMany({
+      where,
+      include: {
+        schedule: true,
+      },
+      orderBy,
+      skip,
+      take: limitNumber,
+    }),
+    prisma.doctorSchedules.count({ where }),
+  ]);
+
+  const schedules = doctorSchedules.map(({ schedule, isBooked }) => ({
+    ...schedule,
+    isBooked,
+  }));
   return {
     meta: {
       total,
@@ -274,42 +277,57 @@ const getDoctorSchedulesService = async (
 
 const deleteDoctorScheduleService = async (
   email: string,
-  scheduleId: string,
+  payload: { schedules: string[] },
 ) => {
-  const doctorData = await prisma.doctor.findUnique({
-    where: {
-      email,
-    },
-  });
+  const { schedules } = payload;
 
-  if (!doctorData) {
-    throw new AppError(httpStatus.NOT_FOUND, "Doctor not found");
-  }
-
-  const isBookedSchedule = await prisma.doctorSchedules.findFirst({
-    where: {
-      doctorId: doctorData.id,
-      scheduleId: scheduleId,
-      isBooked: true,
-    },
-  });
-
-  if (isBookedSchedule) {
+  if (!schedules?.length) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
-      "You can not delete the schedule because of the schedule is already booked!",
+      "No schedules provided for deletion",
     );
   }
 
-  const result = await prisma.doctorSchedules.delete({
+  const now = new Date();
+
+  const existing = await prisma.doctorSchedules.findMany({
     where: {
-      doctorId_scheduleId: {
-        doctorId: doctorData.id,
-        scheduleId: scheduleId,
+      doctor: {
+        email,
       },
+      scheduleId: { in: schedules },
+    },
+    select: {
+      scheduleId: true,
+      isBooked: true,
+      schedule: { select: { startDateTime: true } },
     },
   });
-  return result;
+
+  if (existing.length === 0) {
+    throw new AppError(
+      httpStatus.NOT_FOUND,
+      "None of the provided schedules are assigned to this doctor",
+    );
+  }
+
+  const deletableIds = existing
+    .filter((s) => s.isBooked === false && s.schedule.startDateTime > now)
+    .map((s) => s.scheduleId);
+
+  if (deletableIds.length === 0) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      "No schedules can be deleted – all are either past or already booked",
+    );
+  }
+
+  await prisma.doctorSchedules.deleteMany({
+    where: {
+      doctor: { email },
+      scheduleId: { in: deletableIds },
+    },
+  });
 };
 
 export const doctorScheduleServices = {

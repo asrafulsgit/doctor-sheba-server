@@ -35,7 +35,7 @@ router.post(
 
 // delete doctor schedule
 router.delete(
-    '/:id',
+    '/',
     authentication(UserRole.DOCTOR),
     doctorScheduleControllers.deleteDoctorScheduleController
 );

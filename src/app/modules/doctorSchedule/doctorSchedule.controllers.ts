@@ -73,10 +73,10 @@ const getDoctorSchedulesController = catchAsync(
 const deleteDoctorScheduleController = catchAsync(
   async (req: Request, res: Response) => {
     const email = req.user.email as string;
-    const { id } = req.params;
+
     const result = await doctorScheduleServices.deleteDoctorScheduleService(
       email,
-      id,
+      req.body,
     );
 
     sendResponse(res, {
