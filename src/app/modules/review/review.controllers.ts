@@ -8,7 +8,7 @@ import { JwtPayload } from "jsonwebtoken";
 const createReviewController = catchAsync(
   async (req: Request, res: Response) => {
     const user = req.user as JwtPayload;
-    const prescription = await reviewServices.createReviewService(
+    await reviewServices.createReviewService(
       user,
       req.body,
     );
@@ -16,46 +16,26 @@ const createReviewController = catchAsync(
       statusCode: httpStatus.CREATED,
       success: true,
       message: "Review created successfully",
-      data: prescription,
+      data: null,
     });
   },
 );
 
-// const myPrescriptionsController = catchAsync(
-//   async (req: Request, res: Response) => {
-//     const user = req.user as JwtPayload;
-//     const schedules =
-//       await prescriptionServices.getMyPrescriptionsService(
-//         user,
-//         req.query,
-//       );
-//     sendResponse(res, {
-//       statusCode: httpStatus.OK,
-//       success: true,
-//       message: "My prescriptions retrieved successfully",
-//       data: schedules.data,
-//       meta: schedules.meta,
-//     });
-//   },
-// );
-
-// const getPrescriptionsController = catchAsync(
-//   async (req: Request, res: Response) => {
-//     const result = await prescriptionServices.getPrescriptionsService(
-//       req.query,
-//     );
-
-//     sendResponse(res, {
-//       statusCode: httpStatus.OK,
-//       success: true,
-//       message: "Prescriptions retrieved successfully!",
-//       data: result,
-//     });
-//   },
-// );
+const getMyReviewsController = catchAsync(
+  async (req: Request, res: Response) => {
+    const user = req.user as JwtPayload;
+    const result = await reviewServices.getMyReviewsService(user, req.query);
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: "My reviews retrieved successfully",
+      data: result.data,
+      meta: result.meta,
+    });
+  },
+);
 
 export const reviewControllers = {
   createReviewController,
-  // myPrescriptionsController,
-  // getPrescriptionsController
+  getMyReviewsController,
 };

@@ -5,14 +5,11 @@ import AppError from "../../errorHelpers/appError";
 import httpStatus from "http-status";
 import { AppointmentStatus, PaymentStatus, UserRole } from "@prisma/client";
 import { JwtPayload } from "jsonwebtoken";
+import { CreateReviewInput, GetMyReviewsQueryInput } from "./review.validation";
 
 const createReviewService = async (
   user: JwtPayload,
-  payload: {
-    appointmentId: string;
-    rating: number;
-    comment: string;
-  },
+  payload: CreateReviewInput,
 ) => {
   const patientData = await prisma.patient.findUniqueOrThrow({
     where: {
@@ -43,7 +40,7 @@ const createReviewService = async (
     throw new AppError(httpStatus.BAD_REQUEST, "This is not your appointment!");
   }
 
-  return await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx) => {
     const result = await tx.review.create({
       data: {
         appointmentId: appointmentData.id,
@@ -69,51 +66,87 @@ const createReviewService = async (
         averageRating: averageRating._avg.rating as number,
       },
     });
-
-    return result;
   });
 };
 
-const getMyPrescriptionsService = async (
+type IStarCount = {
+  1: number;
+  2: number;
+  3: number;
+  4: number;
+  5: number;
+};
+
+const getMyReviewsService = async (
   user: JwtPayload,
-  query: Record<string, any>,
+  query: GetMyReviewsQueryInput,
 ) => {
   const { page, limit } = query;
 
   const queryBuilder = new QueryBuilder(query).sort().pagination().build();
 
-  const where: any = { ...queryBuilder.where };
-
-  if (user.role === UserRole.PATIENT) {
-    where.patient = {
-      email: user.email,
-    };
-  }
+  const where: any = {
+    ...queryBuilder.where,
+  };
 
   if (user.role === UserRole.DOCTOR) {
     where.doctor = {
       email: user.email,
     };
   }
+  if (user.role === UserRole.PATIENT) {
+    where.patient = {
+      email: user.email,
+    };
+  }
 
-  const prescriptions = await prisma.prescription.findMany({
-    where: {
-      ...where,
-    },
+  const aggregateResult = await prisma.review.aggregate({
+    where,
+    _count: { id: true },
+    _avg: { rating: true },
+  });
+
+  const totalReviews = aggregateResult._count.id;
+  const averageRating = Number((aggregateResult._avg.rating ?? 0).toFixed(2));
+
+  const ratingGroups = await prisma.review.groupBy({
+    by: ["rating"],
+    where,
+    _count: { rating: true },
+  });
+
+  const starCounts: IStarCount = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+
+  ratingGroups.forEach((group) => {
+    const star = Math.min(5, Math.max(1, Math.round(group.rating))) as
+      | 1
+      | 2
+      | 3
+      | 4
+      | 5;
+    starCounts[star] += group._count.rating;
+  });
+
+  const reviews = await prisma.review.findMany({
+    where,
     ...queryBuilder.options,
     include: {
-      appointment: true,
-      patient: user.role === UserRole.DOCTOR,
-      doctor: user.role === UserRole.PATIENT,
+      patient: {
+        select: {
+          id: true,
+          name: true,
+          profilePhoto: true,
+        },
+      },
     },
   });
-  const total = await prisma.prescription.count({
-    where: {
-      ...where,
-    },
+
+  const total = await prisma.review.count({
+    where,
   });
 
   const limitNumber = Number(limit) || 10;
+
   return {
     meta: {
       total,
@@ -121,49 +154,22 @@ const getMyPrescriptionsService = async (
       limit: limitNumber,
       totalPages: Math.ceil(total / limitNumber),
     },
-    data: prescriptions,
-  };
-};
-
-const getPrescriptionsService = async (query: Record<string, any>) => {
-  const { where, options } = new QueryBuilder(query)
-    .sort()
-    .filter()
-    .pagination()
-    .build();
-
-  const prescriptions = await prisma.prescription.findMany({
-    where: {
-      ...where,
-    },
-    ...options,
-    include: {
-      appointment: true,
-      patient: true,
-      doctor: true,
-    },
-  });
-
-  const total = await prisma.prescription.count({
-    where: {
-      ...where,
-    },
-  });
-
-  const limit = Number(query.limit) || 10;
-  return {
-    data: prescriptions,
-    meta: {
-      total,
-      page: Number(query.page) || 1,
-      limit,
-      totalPages: Math.ceil(total / limit),
+    data: {
+      totalReviews,
+      averageRating,
+      ratingCounts: {
+        "1star": starCounts[1],
+        "2star": starCounts[2],
+        "3star": starCounts[3],
+        "4star": starCounts[4],
+        "5star": starCounts[5],
+      },
+      reviews,
     },
   };
 };
 
 export const reviewServices = {
   createReviewService,
-  getMyPrescriptionsService,
-  getPrescriptionsService,
+  getMyReviewsService,
 };
