@@ -5,7 +5,10 @@ import AppError from "../../errorHelpers/appError";
 import httpStatus from "http-status";
 import { AppointmentStatus, PaymentStatus, UserRole } from "@prisma/client";
 import { JwtPayload } from "jsonwebtoken";
-import { CreatePrescriptionInput } from "./prescription.validation";
+import {
+  CreatePrescriptionInput,
+  UpdatePrescriptionInput,
+} from "./prescription.validation";
 
 const createPrescriptionService = async (
   email: string,
@@ -21,12 +24,18 @@ const createPrescriptionService = async (
     },
   });
 
-  if (appointment.status !== AppointmentStatus.INPROGRESS) {
+  const allowedStatuses: AppointmentStatus[] = [
+    AppointmentStatus.INPROGRESS,
+    AppointmentStatus.COMPLETED,
+  ];
+
+  if (!allowedStatuses.includes(appointment.status)) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
-      "Appointment must be inprogress before creating prescription",
+      "Appointment must be inprogress or completed before creating prescription",
     );
   }
+
   if (appointment.paymentStatus !== PaymentStatus.PAID) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
@@ -49,6 +58,84 @@ const createPrescriptionService = async (
       medications: {
         create: payload.medications,
       },
+    },
+  });
+
+  return prescription;
+};
+
+const updatePrescriptionService = async (
+  email: string,
+  prescriptionId: string,
+  payload: UpdatePrescriptionInput,
+) => {
+  const appointment = await prisma.appointment.findFirstOrThrow({
+    where: {
+      prescriptions: {
+        some: { id: prescriptionId },
+      },
+    },
+    include: {
+      doctor: true,
+    },
+  });
+
+  if (email !== appointment.doctor.email) {
+    throw new AppError(httpStatus.BAD_REQUEST, "This is not your appointment");
+  }
+
+  const { medications, followUpDate, ...rest } = payload;
+
+  await prisma.prescription.update({
+    where: {
+      id: prescriptionId,
+    },
+    data: {
+      ...rest,
+      ...(followUpDate && { followUpDate: new Date(followUpDate) }),
+      ...(medications && {
+        medications: {
+          deleteMany: {},
+          create: medications.map((m) => ({
+            name: m.name,
+            dosage: m.dosage,
+            frequency: m.frequency,
+            duration: m.duration,
+          })),
+        },
+      }),
+    },
+  });
+};
+
+const getPrescriptionService = async (
+  user: JwtPayload,
+  prescriptionId: string,
+) => {
+  const where: any = {};
+
+  if (user.role === UserRole.PATIENT) {
+    where.patient = {
+      email: user.email,
+    };
+  }
+
+  if (user.role === UserRole.DOCTOR) {
+    where.doctor = {
+      email: user.email,
+    };
+  }
+
+  const prescription = await prisma.prescription.findFirstOrThrow({
+    where: {
+      id: prescriptionId,
+      ...where,
+    },
+    include: {
+      appointment: true,
+      patient: user.role === UserRole.DOCTOR,
+      doctor: user.role === UserRole.PATIENT,
+      medications: true,
     },
   });
 
@@ -167,6 +254,8 @@ const getPrescriptionsService = async (query: Record<string, any>) => {
 
 export const prescriptionServices = {
   createPrescriptionService,
+  updatePrescriptionService,
   getMyPrescriptionsService,
   getPrescriptionsService,
+  getPrescriptionService,
 };
