@@ -14,4 +14,11 @@ router.get(
   paymentControllers.getPatientPaymentsController,
 );
 
+router.get(
+  "/my-earnings",
+  authentication(UserRole.DOCTOR),
+  validateRequest(paymentValidators.getPatientPaymentsValidation),
+  paymentControllers.getDoctorEarningsController,
+);
+
 export const paymentRouter = router;

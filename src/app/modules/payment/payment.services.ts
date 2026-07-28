@@ -50,9 +50,9 @@ export const stripeWebhook = async (req: Request, res: Response) => {
               ? PaymentStatus.PAID
               : PaymentStatus.UNPAID,
           paymentGatewayData: {
-            currency : session.currency,
-            customer_details : session.customer_details,
-            method : session.payment_method_types
+            currency: session.currency,
+            customer_details: session.customer_details,
+            method: session.payment_method_types,
           },
         },
       });
@@ -121,7 +121,7 @@ const getPatientPaymentsService = async (
     },
   });
 
-  const paymentsall = await prisma.payment.findMany( );
+  const paymentsall = await prisma.payment.findMany();
 
   const total = await prisma.payment.count({ where });
   const paidAmount = payments
@@ -140,7 +140,7 @@ const getPatientPaymentsService = async (
       due: dueAmount,
       transactions: payments.length,
       payments,
-      paymentsall
+      paymentsall,
     },
     meta: {
       total,
@@ -151,6 +151,181 @@ const getPatientPaymentsService = async (
   };
 };
 
+const getDoctorEarningsService = async (
+  user: JwtPayload,
+  query: Record<string, any>,
+) => {
+  const { startDate, endDate, page, limit = 30 } = query;
+  const now = new Date();
+  const last7Days = new Date(now);
+  last7Days.setDate(now.getDate() - 7);
+  last7Days.setHours(0, 0, 0, 0);
+
+  const lastMonth = new Date(now);
+  lastMonth.setMonth(now.getMonth() - 1);
+  lastMonth.setHours(0, 0, 0, 0);
+
+  const sixMonthsAgo = new Date(now);
+  sixMonthsAgo.setMonth(now.getMonth() - 6);
+  sixMonthsAgo.setHours(0, 0, 0, 0);
+
+  const queryBuilder = new QueryBuilder(query)
+    .search(["transactionId"])
+    .filter()
+    .sort()
+    .pagination()
+    .build();
+
+  const where: any = {
+    ...queryBuilder.where,
+    appointment: { doctor: { email: user.email } },
+  };
+
+  if (startDate || endDate) {
+    where.createdAt = {};
+
+    if (startDate) {
+      where.createdAt.gte = new Date(startDate);
+    }
+
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      where.createdAt.lte = end;
+    }
+  }
+
+  const [
+    totalAgg,
+    last7DaysAgg,
+    lastMonthAgg,
+    sixMonthsPayments,
+    recentPayments,
+  ] = await Promise.all([
+    // Total earnings + count of paid payments
+    prisma.payment.aggregate({
+      where: {
+        status: PaymentStatus.PAID,
+        appointment: { doctor: { email: user.email } },
+      },
+      _sum: { amount: true },
+      _count: { id: true },
+    }),
+
+    // Last 7 days
+    prisma.payment.aggregate({
+      where: {
+        status: PaymentStatus.PAID,
+        createdAt: { gte: last7Days },
+        appointment: { doctor: { email: user.email } },
+      },
+      _sum: { amount: true },
+    }),
+
+    // Last month
+    prisma.payment.aggregate({
+      where: {
+        status: PaymentStatus.PAID,
+        createdAt: { gte: lastMonth },
+        appointment: { doctor: { email: user.email } },
+      },
+      _sum: { amount: true },
+    }),
+
+    // For chart
+    prisma.payment.findMany({
+      where: {
+        status: PaymentStatus.PAID,
+        createdAt: { gte: sixMonthsAgo },
+        appointment: { doctor: { email: user.email } },
+      },
+      select: {
+        amount: true,
+        createdAt: true,
+      },
+    }),
+
+    // Payments with patient data
+    prisma.payment.findMany({
+      where,
+      ...queryBuilder.options,
+      select: {
+        id: true,
+        appointmentId: true,
+        amount: true,
+        transactionId: true,
+        status: true,
+        createdAt: true,
+        paymentGatewayData: true,
+        appointment: {
+          select: {
+            patient: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                profilePhoto: true,
+                contactNumber: true,
+              },
+            },
+          },
+        },
+      },
+    }),
+  ]);
+
+  // 3. Build last 6 months chart
+  const chartMap = new Map<string, number>();
+
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now);
+    d.setMonth(now.getMonth() - i);
+    const label = d.toLocaleString("en-US", {
+      month: "short",
+      timeZone: "Asia/Dhaka",
+    });
+    chartMap.set(label, 0);
+  }
+
+  sixMonthsPayments.forEach((p) => {
+    const label = p.createdAt.toLocaleString("en-US", {
+      month: "short",
+      timeZone: "Asia/Dhaka",
+    });
+    chartMap.set(label, (chartMap.get(label) ?? 0) + p.amount);
+  });
+
+  const last6MonthsEarningsChart = Array.from(chartMap.entries()).map(
+    ([label, value]) => ({
+      label,
+      value: Number(value.toFixed(2)),
+    }),
+  );
+
+  const total = await prisma.payment.count({
+    where,
+  });
+
+  const limitNumber = Number(limit) || 30;
+  return {
+    meta: {
+      total,
+      page: Number(page) || 1,
+      limit: limitNumber,
+      totalPages: Math.ceil(total / limitNumber),
+    },
+    data: {
+      totalEarnings: Number((totalAgg._sum.amount ?? 0).toFixed(2)),
+      totalPaidPayments: totalAgg._count.id,
+      last7DaysEarnings: Number((last7DaysAgg._sum.amount ?? 0).toFixed(2)),
+      lastMonthEarnings: Number((lastMonthAgg._sum.amount ?? 0).toFixed(2)),
+      last6MonthsEarningsChart,
+      payments: recentPayments,
+    },
+  };
+};
+
 export const paymentServices = {
   getPatientPaymentsService,
+  getDoctorEarningsService,
 };
