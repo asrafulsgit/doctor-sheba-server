@@ -125,7 +125,7 @@ const updatePatientService = async (
     }
   });
 
-  if (previousPhoto) {
+  if (previousPhoto && file) {
     await deleteCloudinaryImage(previousPhoto);
   }
 

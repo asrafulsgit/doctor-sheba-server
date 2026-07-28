@@ -74,8 +74,7 @@ const getAiSuggestedDoctorsController = catchAsync(
 const updateDoctorController = catchAsync(
   async (req: Request, res: Response) => {
     const user = req.user as JwtPayload;
-    const doctorId = req.params.id as string;
-    await doctorServices.updateDoctorService(req.body, user, doctorId);
+    await doctorServices.updateDoctorService(req.body, user,req.file);
     sendResponse(res, {
       statusCode: httpStatus.OK,
       success: true,

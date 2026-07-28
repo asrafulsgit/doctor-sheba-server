@@ -6,6 +6,8 @@ import httpStatus from "http-status";
 import { IUpdateDoctor } from "./doctor.interfaces";
 import { JwtPayload } from "jsonwebtoken";
 import { AppointmentStatus, Prisma, UserRole } from "@prisma/client";
+import { UpdateDoctorInput } from "./doctor.validation";
+import { deleteCloudinaryImage } from "../../config/cloudinary";
 
 const getDoctorsService = async (query: Record<string, any>) => {
   const { specialty, maxFee, minFee, page, limit } = query;
@@ -206,7 +208,7 @@ const getPatientRecordService = async (user: JwtPayload, patientId: string) => {
           },
         },
         medications: true,
-      }
+      },
     },
     medicalReport: true,
     patientHealthData: true,
@@ -352,76 +354,33 @@ Patient Symptoms:
 };
 
 const updateDoctorService = async (
-  payload: IUpdateDoctor,
+  payload: UpdateDoctorInput,
   user: JwtPayload,
-  userId: string,
+  file?: Express.Multer.File,
 ) => {
-  if (userId !== user.id && user.role !== UserRole.ADMIN) {
+  const doctorInfo = await prisma.doctor.findUniqueOrThrow({
+    where: {
+      email: user.email,
+    },
+  });
+  const previousPhoto = doctorInfo.profilePhoto;
+  if (doctorInfo.isDeleted) {
     throw new AppError(
-      httpStatus.BAD_GATEWAY,
-      "You cannot modify someone else's data.",
+      httpStatus.BAD_REQUEST,
+      "Your account is temporarily deleted",
     );
   }
 
-  if (payload.appointmentFee || payload.specialties) {
-    if (user.role !== UserRole.ADMIN) {
-      throw new AppError(
-        httpStatus.FORBIDDEN,
-        "You can not update appointment fee or specialties",
-      );
-    }
-  }
-
-  const newDoctor = await prisma.$transaction(async (tnx) => {
-    const { specialties, ...updateData } = payload;
-    await tnx.doctor.update({
-      where: { id: userId },
-      data: {
-        ...updateData,
-      },
-    });
-
-    if (payload.specialties) {
-      const existingSpecialties = await tnx.doctorSpecialities.findMany({
-        where: {
-          doctorId: userId,
-        },
-        select: { specialitiesId: true },
-      });
-
-      const existingIds = existingSpecialties.map((s) => s.specialitiesId);
-
-      // Specialties to add
-      const toAdd = payload.specialties.filter(
-        (id) => !existingIds.includes(id),
-      );
-      // Specialties to remove
-      const toRemove = existingIds.filter(
-        (id) => !payload.specialties!.includes(id),
-      );
-
-      // Add new specialties
-      if (toAdd.length) {
-        const addData = toAdd.map((specialitiesId) => ({
-          doctorId: userId,
-          specialitiesId,
-        }));
-        await tnx.doctorSpecialities.createMany({ data: addData });
-      }
-
-      // Remove deleted specialties
-      if (toRemove.length) {
-        await tnx.doctorSpecialities.deleteMany({
-          where: {
-            doctorId: userId,
-            specialitiesId: { in: toRemove },
-          },
-        });
-      }
-    }
+  await prisma.doctor.update({
+    where: { email: user.email },
+    data: {
+      ...payload,
+      profilePhoto: file?.path,
+    },
   });
-
-  return newDoctor;
+  if (previousPhoto && file) {
+    await deleteCloudinaryImage(previousPhoto);
+  }
 };
 
 const getMyDoctorsService = async (
@@ -479,6 +438,45 @@ const getMyDoctorsService = async (
     data: doctors,
   };
 };
+
+// if (payload.specialties) {
+//       const existingSpecialties = await tnx.doctorSpecialities.findMany({
+//         where: {
+//           doctorId: userId,
+//         },
+//         select: { specialitiesId: true },
+//       });
+
+//       const existingIds = existingSpecialties.map((s) => s.specialitiesId);
+
+//       // Specialties to add
+//       const toAdd = payload.specialties.filter(
+//         (id) => !existingIds.includes(id),
+//       );
+//       // Specialties to remove
+//       const toRemove = existingIds.filter(
+//         (id) => !payload.specialties!.includes(id),
+//       );
+
+//       // Add new specialties
+//       if (toAdd.length) {
+//         const addData = toAdd.map((specialitiesId) => ({
+//           doctorId: userId,
+//           specialitiesId,
+//         }));
+//         await tnx.doctorSpecialities.createMany({ data: addData });
+//       }
+
+//       // Remove deleted specialties
+//       if (toRemove.length) {
+//         await tnx.doctorSpecialities.deleteMany({
+//           where: {
+//             doctorId: userId,
+//             specialitiesId: { in: toRemove },
+//           },
+//         });
+//       }
+//     }
 
 export const doctorServices = {
   getDoctorsService,

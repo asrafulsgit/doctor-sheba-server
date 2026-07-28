@@ -4,6 +4,7 @@ import validateRequest from "../../middlewares/validateRequest";
 import { doctorValidators } from "./doctor.validation";
 import { authentication } from "../../middlewares/authentication";
 import { UserRole } from "@prisma/client";
+import { multerUpload } from "../../config/multer";
 const router = Router();
 
 router.get(
@@ -45,9 +46,10 @@ router.post(
 );
 
 router.patch(
-  "/:id",
-  validateRequest(doctorValidators.paramValidation),
+  "/",
   authentication(UserRole.DOCTOR, UserRole.ADMIN),
+  multerUpload.single("avatar"),
+  validateRequest(doctorValidators.updateDoctorValidationSchema),
   doctorControllers.updateDoctorController,
 );
 
