@@ -26,6 +26,16 @@ const getDoctorController = catchAsync(async (req: Request, res: Response) => {
     data,
   });
 });
+const getDoctorProfileController = catchAsync(async (req: Request, res: Response) => {
+  const user = req.user as JwtPayload;
+  const data = await doctorServices.getDoctorProfileService(user);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Doctor retrieved successfully",
+    data,
+  });
+});
 
 const getPatientRecordsController = catchAsync(
   async (req: Request, res: Response) => {
@@ -105,6 +115,7 @@ const getMyDoctorsController = catchAsync(
 export const doctorControllers = {
   getDoctorsController,
   getDoctorController,
+  getDoctorProfileController,
   getPatientRecordsController,
   getPatientRecordController,
   getAiSuggestedDoctorsController,

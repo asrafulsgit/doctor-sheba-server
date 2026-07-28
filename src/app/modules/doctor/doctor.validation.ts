@@ -26,12 +26,19 @@ const updateDoctorValidationSchema = z.object({
       .max(255, "Address must be at most 255 characters")
       .optional(),
 
-    experience: z
-      .number()
-      .int("Experience must be a whole number")
-      .min(0, "Experience cannot be negative")
-      .max(60, "Experience cannot exceed 60 years")
-      .optional(),
+    experience: z.preprocess(
+      (val) => {
+        if (val === "" || val === null || val === undefined) return undefined;
+        const num = Number(val);
+        return Number.isNaN(num) ? val : num;
+      },
+      z
+        .number({ error: "Experience must be a number" })
+        .int("Experience must be a whole number")
+        .min(0, "Experience cannot be negative")
+        .max(60, "Experience cannot exceed 60 years")
+        .optional(),
+    ),
 
     gender: z
       .enum(["MALE", "FEMALE"], {

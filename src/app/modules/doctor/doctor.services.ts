@@ -112,6 +112,23 @@ const getDoctorService = async (id: string) => {
   };
 };
 
+const getDoctorProfileService = async (user: JwtPayload) => {
+  const doctor = await prisma.doctor.findUniqueOrThrow({
+    where: {
+      email: user.email,
+    },
+    include: {
+      doctorSpecialities: {
+        include: {
+          specialities: true,
+        },
+      },
+    },
+  });
+
+  return doctor;
+};
+
 const getPatientRecordsService = async (
   user: JwtPayload,
   query: Record<string, any>,
@@ -481,6 +498,7 @@ const getMyDoctorsService = async (
 export const doctorServices = {
   getDoctorsService,
   getDoctorService,
+  getDoctorProfileService,
   getPatientRecordsService,
   getPatientRecordService,
   getAiSuggestedDoctorsService,
