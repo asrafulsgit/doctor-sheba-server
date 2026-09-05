@@ -6,6 +6,12 @@ import { metaControllers } from "./meta.controllers";
 const router = express.Router();
 
 router.get(
+  "/admin",
+  authentication(UserRole.ADMIN),
+  metaControllers.getAdminMetaDataController,
+);
+
+router.get(
   "/patient",
   authentication(UserRole.PATIENT),
   metaControllers.getPatientMetaDataController,

@@ -33,7 +33,21 @@ const getDoctorMetaDataController = catchAsync(
   },
 );
 
+const getAdminMetaDataController = catchAsync(
+  async (_req: Request, res: Response) => {
+    const result = await metaServices.getAdminMetaDataService();
+
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: "Admin Meta data retrieved successfully!",
+      data: result,
+    });
+  },
+);
+
 export const metaControllers = {
   getPatientMetaDataController,
-  getDoctorMetaDataController
+  getDoctorMetaDataController,
+  getAdminMetaDataController,
 };

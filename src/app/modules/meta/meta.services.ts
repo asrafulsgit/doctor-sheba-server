@@ -154,32 +154,111 @@ const getPatientMetaData = async (user: JwtPayload) => {
   };
 };
 
-const getAdminMetaData = async () => {
-  const appointmentCount = await prisma.appointment.count();
-  const patientCount = await prisma.patient.count();
-  const doctorCount = await prisma.doctor.count();
-  const adminCount = await prisma.admin.count();
-  const paymentCount = await prisma.payment.count();
+const getAdminMetaDataService = async () => {
+  const now = new Date();
+  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const previousMonthStart = new Date(
+    now.getFullYear(),
+    now.getMonth() - 1,
+    1,
+  );
+  const chartStart = new Date(now.getFullYear(), now.getMonth() - 11, 1);
 
-  const totalRevenue = await prisma.payment.aggregate({
-    _sum: { amount: true },
-    where: {
-      status: PaymentStatus.PAID,
-    },
+  const [
+    totalPatients,
+    totalDoctors,
+    lastMonthRevenue,
+    lastMonthAppointments,
+    monthlyPayments,
+    appointmentsByStatus,
+    recentAppointments,
+    completedAppointmentsByDoctor,
+  ] = await Promise.all([
+    prisma.patient.count({ where: { isDeleted: false } }),
+    prisma.doctor.count({ where: { isDeleted: false } }),
+    prisma.payment.aggregate({
+      where: {
+        status: PaymentStatus.PAID,
+        createdAt: { gte: previousMonthStart, lt: currentMonthStart },
+      },
+      _sum: { amount: true },
+    }),
+    prisma.appointment.count({
+      where: { createdAt: { gte: previousMonthStart, lt: currentMonthStart } },
+    }),
+    prisma.payment.findMany({
+      where: {
+        status: PaymentStatus.PAID,
+        createdAt: { gte: chartStart, lte: now },
+      },
+      select: { amount: true, createdAt: true },
+    }),
+    prisma.appointment.groupBy({
+      by: ["status"],
+      _count: { id: true },
+    }),
+    prisma.appointment.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      select: {
+        id: true,
+        status: true,
+        paymentStatus: true,
+        createdAt: true,
+        schedule: { select: { startDateTime: true, endDateTime: true } },
+        patient: { select: { id: true, name: true, email: true, profilePhoto: true } },
+        doctor: { select: { id: true, name: true, email: true, profilePhoto: true } },
+      },
+    }),
+    prisma.appointment.groupBy({
+      by: ["doctorId"],
+      where: { status: AppointmentStatus.COMPLETED },
+      _count: { id: true },
+      orderBy: { _count: { id: "desc" } },
+      take: 5,
+    }),
+  ]);
+
+  const monthlyRevenue = Array.from({ length: 12 }, (_, index) => {
+    const monthDate = new Date(now.getFullYear(), now.getMonth() - 11 + index, 1);
+    const revenue = monthlyPayments
+      .filter(
+        (payment) =>
+          payment.createdAt.getFullYear() === monthDate.getFullYear() &&
+          payment.createdAt.getMonth() === monthDate.getMonth(),
+      )
+      .reduce((sum, payment) => sum + payment.amount, 0);
+
+    return {
+      month: monthDate.toLocaleString("en-US", { month: "short" }),
+      revenue,
+    };
   });
 
-  const barChartData = await getBarChartData();
-  const pieCharData = await getPieChartData();
+  const topDoctorIds = completedAppointmentsByDoctor.map(({ doctorId }) => doctorId);
+  const topDoctors = await prisma.doctor.findMany({
+    where: { id: { in: topDoctorIds }, isDeleted: false },
+    select: { id: true, name: true, email: true, profilePhoto: true, averageRating: true },
+  });
+  const topPerformingDoctors = completedAppointmentsByDoctor.map(({ doctorId, _count }) => ({
+    ...topDoctors.find((doctor) => doctor.id === doctorId),
+    appointments: _count.id,
+  }));
 
   return {
-    appointmentCount,
-    patientCount,
-    doctorCount,
-    adminCount,
-    paymentCount,
-    totalRevenue,
-    barChartData,
-    pieCharData,
+    stats: {
+      totalPatients,
+      totalDoctors,
+      lastMonthRevenue: lastMonthRevenue._sum.amount ?? 0,
+      lastMonthAppointments,
+    },
+    monthlyRevenue,
+    appointmentCountsByStatus: appointmentsByStatus.map(({ status, _count }) => ({
+      status,
+      appointments: _count.id,
+    })),
+    recentAppointments,
+    topPerformingDoctors,
   };
 };
 
@@ -320,35 +399,8 @@ const getDoctorMetaData = async (user: JwtPayload) => {
   };
 };
 
-const getBarChartData = async () => {
-  const appointmentCountByMonth: { month: Date; count: bigint }[] =
-    await prisma.$queryRaw`
-        SELECT DATE_TRUNC('month', "createdAt") AS month,
-        CAST(COUNT(*) AS INTEGER) AS count
-        FROM "appointments"
-        GROUP BY month
-        ORDER BY month ASC
-    `;
-
-  return appointmentCountByMonth;
-};
-
-const getPieChartData = async () => {
-  const appointmentStatusDistribution = await prisma.appointment.groupBy({
-    by: ["status"],
-    _count: { id: true },
-  });
-
-  const formattedAppointmentStatusDistribution =
-    appointmentStatusDistribution.map(({ status, _count }) => ({
-      status,
-      count: Number(_count.id),
-    }));
-
-  return formattedAppointmentStatusDistribution;
-};
-
 export const metaServices = {
   getPatientMetaDataService,
   getDoctorMetaDataService,
+  getAdminMetaDataService,
 };
