@@ -157,11 +157,7 @@ const getPatientMetaData = async (user: JwtPayload) => {
 const getAdminMetaDataService = async () => {
   const now = new Date();
   const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const previousMonthStart = new Date(
-    now.getFullYear(),
-    now.getMonth() - 1,
-    1,
-  );
+  const previousMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const chartStart = new Date(now.getFullYear(), now.getMonth() - 11, 1);
 
   const [
@@ -206,8 +202,18 @@ const getAdminMetaDataService = async () => {
         paymentStatus: true,
         createdAt: true,
         schedule: { select: { startDateTime: true, endDateTime: true } },
-        patient: { select: { id: true, name: true, email: true, profilePhoto: true } },
-        doctor: { select: { id: true, name: true, email: true, profilePhoto: true } },
+        patient: {
+          select: { id: true, name: true, email: true, profilePhoto: true },
+        },
+        doctor: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            profilePhoto: true,
+            appointmentFee: true,
+          },
+        },
       },
     }),
     prisma.appointment.groupBy({
@@ -220,7 +226,11 @@ const getAdminMetaDataService = async () => {
   ]);
 
   const monthlyRevenue = Array.from({ length: 12 }, (_, index) => {
-    const monthDate = new Date(now.getFullYear(), now.getMonth() - 11 + index, 1);
+    const monthDate = new Date(
+      now.getFullYear(),
+      now.getMonth() - 11 + index,
+      1,
+    );
     const revenue = monthlyPayments
       .filter(
         (payment) =>
@@ -235,15 +245,31 @@ const getAdminMetaDataService = async () => {
     };
   });
 
-  const topDoctorIds = completedAppointmentsByDoctor.map(({ doctorId }) => doctorId);
+  const topDoctorIds = completedAppointmentsByDoctor.map(
+    ({ doctorId }) => doctorId,
+  );
   const topDoctors = await prisma.doctor.findMany({
     where: { id: { in: topDoctorIds }, isDeleted: false },
-    select: { id: true, name: true, email: true, profilePhoto: true, averageRating: true },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      profilePhoto: true,
+      averageRating: true,
+      doctorSpecialities: {
+        include: {
+          specialities: true,
+        },
+      },
+      experience: true,
+    },
   });
-  const topPerformingDoctors = completedAppointmentsByDoctor.map(({ doctorId, _count }) => ({
-    ...topDoctors.find((doctor) => doctor.id === doctorId),
-    appointments: _count.id,
-  }));
+  const topPerformingDoctors = completedAppointmentsByDoctor.map(
+    ({ doctorId, _count }) => ({
+      ...topDoctors.find((doctor) => doctor.id === doctorId),
+      appointments: _count.id,
+    }),
+  );
 
   return {
     stats: {
@@ -253,10 +279,12 @@ const getAdminMetaDataService = async () => {
       lastMonthAppointments,
     },
     monthlyRevenue,
-    appointmentCountsByStatus: appointmentsByStatus.map(({ status, _count }) => ({
-      status,
-      appointments: _count.id,
-    })),
+    appointmentCountsByStatus: appointmentsByStatus.map(
+      ({ status, _count }) => ({
+        status,
+        appointments: _count.id,
+      }),
+    ),
     recentAppointments,
     topPerformingDoctors,
   };
@@ -372,14 +400,16 @@ const getDoctorMetaData = async (user: JwtPayload) => {
     (_, index) => {
       const dayDate = new Date(now);
       dayDate.setDate(now.getDate() - (6 - index));
-      const day = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][dayDate.getDay()];
-     
+      const day = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][
+        dayDate.getDay()
+      ];
+
       const existing = last7DaysCompletedAppointments.find(
         (item) => item.day.toLowerCase() === day,
       );
 
       return {
-        day : day.charAt(0).toUpperCase() + day.slice(1,day.length),
+        day: day.charAt(0).toUpperCase() + day.slice(1, day.length),
         count: Number(existing?.count ?? 0),
       };
     },
