@@ -69,4 +69,12 @@ router.patch(
   doctorControllers.updateDoctorController,
 );
 
+// suspend or activate doctor (admin)
+router.delete(
+  "/:id",
+  authentication(UserRole.ADMIN), 
+  validateRequest(doctorValidators.suspendDoctorValidationSchema),
+  doctorControllers.suspendDoctorController,
+);
+
 export const doctorRouter = router;

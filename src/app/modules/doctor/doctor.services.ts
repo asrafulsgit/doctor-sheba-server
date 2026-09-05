@@ -19,7 +19,13 @@ const getDoctorsService = async (query: Record<string, any>) => {
     .pagination()
     .build();
 
-  const where: any = { ...queryBuilder.where };
+  const where: any = {
+    ...queryBuilder.where,
+    isDeleted: false,
+    user: {
+      isVerified: true,
+    },
+  };
   if (specialty) {
     where.doctorSpecialities = {
       some: {
@@ -456,44 +462,27 @@ const getMyDoctorsService = async (
   };
 };
 
-// if (payload.specialties) {
-//       const existingSpecialties = await tnx.doctorSpecialities.findMany({
-//         where: {
-//           doctorId: userId,
-//         },
-//         select: { specialitiesId: true },
-//       });
+const suspendDoctorService = async (id: string, isDelete: boolean) => {
+  const doctorInfo = await prisma.doctor.findUniqueOrThrow({
+    where: {
+      id,
+    },
+  });
 
-//       const existingIds = existingSpecialties.map((s) => s.specialitiesId);
+  if (doctorInfo.isDeleted && isDelete) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      "This doctor is already suspended",
+    );
+  }
 
-//       // Specialties to add
-//       const toAdd = payload.specialties.filter(
-//         (id) => !existingIds.includes(id),
-//       );
-//       // Specialties to remove
-//       const toRemove = existingIds.filter(
-//         (id) => !payload.specialties!.includes(id),
-//       );
-
-//       // Add new specialties
-//       if (toAdd.length) {
-//         const addData = toAdd.map((specialitiesId) => ({
-//           doctorId: userId,
-//           specialitiesId,
-//         }));
-//         await tnx.doctorSpecialities.createMany({ data: addData });
-//       }
-
-//       // Remove deleted specialties
-//       if (toRemove.length) {
-//         await tnx.doctorSpecialities.deleteMany({
-//           where: {
-//             doctorId: userId,
-//             specialitiesId: { in: toRemove },
-//           },
-//         });
-//       }
-//     }
+  await prisma.doctor.update({
+    where: { email: doctorInfo.email },
+    data: {
+      isDeleted: isDelete,
+    },
+  });
+};
 
 export const doctorServices = {
   getDoctorsService,
@@ -504,4 +493,5 @@ export const doctorServices = {
   getAiSuggestedDoctorsService,
   updateDoctorService,
   getMyDoctorsService,
+  suspendDoctorService,
 };

@@ -26,16 +26,18 @@ const getDoctorController = catchAsync(async (req: Request, res: Response) => {
     data,
   });
 });
-const getDoctorProfileController = catchAsync(async (req: Request, res: Response) => {
-  const user = req.user as JwtPayload;
-  const data = await doctorServices.getDoctorProfileService(user);
-  sendResponse(res, {
-    statusCode: httpStatus.OK,
-    success: true,
-    message: "Doctor retrieved successfully",
-    data,
-  });
-});
+const getDoctorProfileController = catchAsync(
+  async (req: Request, res: Response) => {
+    const user = req.user as JwtPayload;
+    const data = await doctorServices.getDoctorProfileService(user);
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: "Doctor retrieved successfully",
+      data,
+    });
+  },
+);
 
 const getPatientRecordsController = catchAsync(
   async (req: Request, res: Response) => {
@@ -84,7 +86,7 @@ const getAiSuggestedDoctorsController = catchAsync(
 const updateDoctorController = catchAsync(
   async (req: Request, res: Response) => {
     const user = req.user as JwtPayload;
-    await doctorServices.updateDoctorService(req.body, user,req.file);
+    await doctorServices.updateDoctorService(req.body, user, req.file);
     sendResponse(res, {
       statusCode: httpStatus.OK,
       success: true,
@@ -111,7 +113,19 @@ const getMyDoctorsController = catchAsync(
     });
   },
 );
-
+const suspendDoctorController = catchAsync(
+  async (req: Request, res: Response) => {
+    const id = req.params.id as string;
+    const isDelete = req.body.isDelete as boolean;
+    await doctorServices.suspendDoctorService(id, isDelete);
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: `Doctor ${isDelete ? "suspended" : "activated"} successfully`,
+      data: null,
+    });
+  },
+);
 export const doctorControllers = {
   getDoctorsController,
   getDoctorController,
@@ -121,4 +135,5 @@ export const doctorControllers = {
   getAiSuggestedDoctorsController,
   updateDoctorController,
   getMyDoctorsController,
+  suspendDoctorController
 };

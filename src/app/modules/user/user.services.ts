@@ -34,8 +34,9 @@ const createDoctorService = async (payload: IDoctor) => {
     payload.password as string,
     Number(envVars.BCRYPT_SALT),
   );
+  const { specialties, password: _password, ...doctorData } = payload;
 
-  const newDoctor = await prisma.$transaction(async (tnx) => {
+  await prisma.$transaction(async (tnx) => {
     await tnx.user.create({
       data: {
         email: payload.email,
@@ -44,22 +45,11 @@ const createDoctorService = async (payload: IDoctor) => {
       },
     });
     const doctor = await tnx.doctor.create({
-      data: {
-        name: payload.name,
-        email: payload.email,
-        contactNumber: payload.contactNumber,
-        address: payload.address,
-        gender: payload.gender,
-        registrationNumber: payload.registrationNumber,
-        appointmentFee: payload.appointmentFee,
-        currentWorkingPlace: payload.currentWorkingPlace,
-        designation: payload.designation,
-        qualification: payload.qualification,
-      },
+      data: doctorData,
     });
 
-    if (payload.specialties?.length) {
-      const doctorSpecialitiesData = payload.specialties.map((specialtyId) => ({
+    if (specialties?.length) {
+      const doctorSpecialitiesData = specialties.map((specialtyId) => ({
         doctorId: doctor.id,
         specialitiesId: specialtyId,
       }));
@@ -71,8 +61,6 @@ const createDoctorService = async (payload: IDoctor) => {
 
     return doctor;
   });
-
-  return newDoctor;
 };
 const createAdminService = async (payload: IPatient) => {
   const password = await bcrypt.hash(
@@ -184,5 +172,5 @@ export const userServices = {
   createDoctorService,
   createAdminService,
   getAllUserService,
-  getMyProfileService
+  getMyProfileService,
 };

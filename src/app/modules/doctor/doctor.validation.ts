@@ -72,6 +72,15 @@ const updateDoctorValidationSchema = z.object({
   }),
 });
 
+const suspendDoctorValidationSchema = z.object({
+  body: z.object({
+    isDelete: z.boolean(),
+  }),
+  params: z.object({
+    id: z.string().trim().uuid("Invalid medical report ID."),
+  }),
+});
+
 const paramValidation = z.object({
   params: z.object({
     id: z.string().trim().uuid("Invalid medical report ID."),
@@ -101,4 +110,5 @@ export const doctorValidators = {
   getAiSuggestedDoctorsValidationSchema,
   getDoctorsQueryValidation,
   paramValidation,
+  suspendDoctorValidationSchema
 };
