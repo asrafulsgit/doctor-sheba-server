@@ -21,6 +21,13 @@ router.get(
   doctorControllers.getDoctorsController,
 );
 
+// getting doctors (all)[admin]
+router.get(
+  "/admin",
+  validateRequest(doctorValidators.getDoctorsQueryValidation),
+  doctorControllers.getDoctorsAdminController,
+);
+
 //getting patient records (doctor)
 router.get(
   "/patient-records",

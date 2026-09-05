@@ -484,6 +484,79 @@ const suspendDoctorService = async (id: string, isDelete: boolean) => {
   });
 };
 
+const getDoctorsAdminService = async (query: Record<string, any>) => {
+  const { specialty, maxFee, minFee, page, limit } = query;
+
+  const queryBuilder = new QueryBuilder(query)
+    .search(["name", "email", "contactNumber"])
+    .filter()
+    .sort()
+    .pagination()
+    .build();
+
+  const where: any = {
+    ...queryBuilder.where,
+  };
+  if (specialty) {
+    where.doctorSpecialities = {
+      some: {
+        specialities: {
+          title: {
+            contains: specialty,
+            mode: "insensitive",
+          },
+        },
+      },
+    };
+  }
+
+  if (maxFee || minFee) {
+    where.appointmentFee = {};
+
+    if (minFee) {
+      where.appointmentFee.gte = Number(minFee);
+    }
+
+    if (maxFee) {
+      where.appointmentFee.lte = Number(maxFee);
+    }
+  }
+  const doctors = await prisma.doctor.findMany({
+    where: {
+      ...where,
+    },
+    ...queryBuilder.options,
+    include: {
+      doctorSpecialities: {
+        select: {
+          specialities: {
+            select: {
+              title: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  const total = await prisma.doctor.count({
+    where: {
+      ...where,
+    },
+  });
+
+  const limitNumber = Number(limit) || 10;
+  return {
+    meta: {
+      total,
+      page: Number(page) || 1,
+      limit: limitNumber,
+      totalPages: Math.ceil(total / limitNumber),
+    },
+    data: doctors,
+  };
+};
+
 export const doctorServices = {
   getDoctorsService,
   getDoctorService,
@@ -494,4 +567,5 @@ export const doctorServices = {
   updateDoctorService,
   getMyDoctorsService,
   suspendDoctorService,
+  getDoctorsAdminService
 };

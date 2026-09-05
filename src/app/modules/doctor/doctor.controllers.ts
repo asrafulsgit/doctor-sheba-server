@@ -126,6 +126,18 @@ const suspendDoctorController = catchAsync(
     });
   },
 );
+
+const getDoctorsAdminController = catchAsync(async (req: Request, res: Response) => {
+  const doctors = await doctorServices.getDoctorsAdminService(req.query);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Doctors retrieved successfully",
+    data: doctors.data,
+    meta: doctors.meta,
+  });
+});
+
 export const doctorControllers = {
   getDoctorsController,
   getDoctorController,
@@ -135,5 +147,6 @@ export const doctorControllers = {
   getAiSuggestedDoctorsController,
   updateDoctorController,
   getMyDoctorsController,
-  suspendDoctorController
+  suspendDoctorController,
+  getDoctorsAdminController
 };

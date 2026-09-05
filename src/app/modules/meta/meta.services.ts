@@ -264,12 +264,6 @@ const getAdminMetaDataService = async () => {
       experience: true,
     },
   });
-  const topPerformingDoctors = completedAppointmentsByDoctor.map(
-    ({ doctorId, _count }) => ({
-      ...topDoctors.find((doctor) => doctor.id === doctorId),
-      appointments: _count.id,
-    }),
-  );
 
   return {
     stats: {
@@ -286,7 +280,7 @@ const getAdminMetaDataService = async () => {
       }),
     ),
     recentAppointments,
-    topPerformingDoctors,
+    topPerformingDoctors: topDoctors,
   };
 };
 
