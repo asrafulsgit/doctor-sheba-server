@@ -9,18 +9,29 @@ import { specialitiesValidators } from "./specialities.validation";
 
 const router = express.Router();
 
-router.get("/", specialitiesControllers.getSpecialitiesController);
+router.get(
+  "/",
+  authentication(UserRole.ADMIN, UserRole.SUPER_ADMIN),
+  specialitiesControllers.getSpecialitiesController,
+);
 
 router.post(
   "/",
-  authentication(UserRole.ADMIN),
+  authentication(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   validateRequest(specialitiesValidators.createSpecialityValidationSchema),
   specialitiesControllers.createSpecialitieController,
 );
 
+router.patch(
+  "/:id",
+  authentication(UserRole.ADMIN, UserRole.SUPER_ADMIN),
+  validateRequest(specialitiesValidators.updateSpecialityValidationSchema),
+  specialitiesControllers.updateSpecialitieController,
+);
+
 router.delete(
   "/:id",
-  authentication(UserRole.ADMIN),
+  authentication(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   specialitiesControllers.deleteSpecialitieController,
 );
 

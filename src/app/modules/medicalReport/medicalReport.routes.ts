@@ -17,7 +17,12 @@ router.get(
 
 router.get(
   "/:id",
-  authentication(UserRole.PATIENT, UserRole.DOCTOR, UserRole.ADMIN),
+  authentication(
+    UserRole.PATIENT,
+    UserRole.DOCTOR,
+    UserRole.ADMIN,
+    UserRole.SUPER_ADMIN,
+  ),
   validateRequest(medicalReportValidators.medicalReportParamValidation),
   medicalReportControllers.getMedicalReportController,
 );

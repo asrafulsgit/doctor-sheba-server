@@ -7,17 +7,27 @@ import { paymentValidators } from "./payment.validation";
 
 const router = Router();
 
+// patient 
 router.get(
   "/my-payments",
   authentication(UserRole.PATIENT),
-  validateRequest(paymentValidators.getPatientPaymentsValidation),
+  validateRequest(paymentValidators.getPaymentsValidation),
   paymentControllers.getPatientPaymentsController,
 );
 
+
+router.get(
+  "/all",
+  authentication(UserRole.ADMIN, UserRole.SUPER_ADMIN),
+  validateRequest(paymentValidators.getPaymentsValidation),
+  paymentControllers.getAllPaymentsController,
+);
+
+// doctor 
 router.get(
   "/my-earnings",
   authentication(UserRole.DOCTOR),
-  validateRequest(paymentValidators.getPatientPaymentsValidation),
+  validateRequest(paymentValidators.getPaymentsValidation),
   paymentControllers.getDoctorEarningsController,
 );
 

@@ -10,7 +10,7 @@ const router = Router();
 
 router.get(
   "/",
-  authentication(UserRole.ADMIN),
+  authentication(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   patientControllers.getPatientsController,
 );
 
@@ -23,7 +23,7 @@ router.get(
 router.get(
   "/:id",
   validateRequest(patientValidators.paramValidation),
-  authentication(UserRole.ADMIN),
+  authentication(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   patientControllers.getPatientController,
 );
 
@@ -37,7 +37,7 @@ router.patch(
 router.delete(
   "/:id",
   validateRequest(patientValidators.deletePatientValidation),
-  authentication(UserRole.ADMIN),
+  authentication(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   patientControllers.deletePatientController,
 );
 

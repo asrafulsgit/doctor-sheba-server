@@ -6,7 +6,7 @@ const router = Router();
 
 router.get(
   "/",
-  authentication(UserRole.ADMIN),
+  authentication(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   appointmentControllers.getAppointmentsController,
 );
 router.get(
@@ -28,7 +28,12 @@ router.post(
 
 router.patch(
   "/status/:id",
-  authentication(UserRole.ADMIN,UserRole.DOCTOR,UserRole.PATIENT),
+  authentication(
+    UserRole.ADMIN,
+    UserRole.SUPER_ADMIN,
+    UserRole.DOCTOR,
+    UserRole.PATIENT,
+  ),
   appointmentControllers.updateAppointmentStatusController,
 );
 

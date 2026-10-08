@@ -24,7 +24,7 @@ router.get(
 // getting doctors (all)[admin]
 router.get(
   "/all",
-  authentication(UserRole.ADMIN),
+  authentication(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   validateRequest(doctorValidators.getDoctorsQueryValidation),
   doctorControllers.getDoctorsAdminController,
 );
@@ -55,7 +55,12 @@ router.get(
 // getting single doctor data 
 router.get(
   "/:id",
-  authentication(UserRole.PATIENT,UserRole.DOCTOR,UserRole.ADMIN),
+  authentication(
+    UserRole.PATIENT,
+    UserRole.DOCTOR,
+    UserRole.ADMIN,
+    UserRole.SUPER_ADMIN,
+  ),
   validateRequest(doctorValidators.paramValidation),
   doctorControllers.getDoctorController,
 );
@@ -71,7 +76,7 @@ router.post(
 // update doctor (doctor)
 router.patch(
   "/",
-  authentication(UserRole.DOCTOR, UserRole.ADMIN),
+  authentication(UserRole.DOCTOR, UserRole.ADMIN, UserRole.SUPER_ADMIN),
   multerUpload.single("avatar"),
   validateRequest(doctorValidators.updateDoctorValidationSchema),
   doctorControllers.updateDoctorController,
@@ -80,7 +85,7 @@ router.patch(
 // suspend or activate doctor (admin)
 router.delete(
   "/:id",
-  authentication(UserRole.ADMIN), 
+  authentication(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   validateRequest(doctorValidators.suspendDoctorValidationSchema),
   doctorControllers.suspendDoctorController,
 );

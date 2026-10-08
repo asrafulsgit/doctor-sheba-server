@@ -7,7 +7,7 @@ import AppError from "../../errorHelpers/appError";
 import { prisma } from "../../shared/prisma";
 import QueryBuilder from "../../utils/queryBuilder";
 import httpStatus from "http-status";
-import { GetPatientPaymentsQuery } from "./payment.validation";
+import { GetPaymentsQuery } from "./payment.validation";
 
 export const stripeWebhook = async (req: Request, res: Response) => {
   let event = req.body;
@@ -73,7 +73,7 @@ export const stripeWebhook = async (req: Request, res: Response) => {
 
 const getPatientPaymentsService = async (
   user: JwtPayload,
-  query: GetPatientPaymentsQuery,
+  query: GetPaymentsQuery,
 ) => {
   const patient = await prisma.patient.findUnique({
     where: { email: user.email },
@@ -153,7 +153,7 @@ const getPatientPaymentsService = async (
 
 const getDoctorEarningsService = async (
   user: JwtPayload,
-  query: Record<string, any>,
+  query: GetPaymentsQuery,
 ) => {
   const { startDate, endDate, page, limit = 30 } = query;
   const now = new Date();
@@ -325,7 +325,144 @@ const getDoctorEarningsService = async (
   };
 };
 
+const getAllPaymentsService = async (queryParams: GetPaymentsQuery) => {
+  const { startDate, endDate, page, limit } = queryParams;
+  const queryBuilder = new QueryBuilder(queryParams);
+
+  const { where, options } = queryBuilder.filter().sort().pagination().build();
+
+  const searchTerm = queryParams.searchTerm?.trim();
+  const searchCondition = searchTerm
+    ? {
+        OR: [
+          {
+            appointment: {
+              patient: {
+                name: { contains: searchTerm, mode: "insensitive" as const },
+              },
+            },
+          },
+          {
+            appointment: {
+              doctor: {
+                name: { contains: searchTerm, mode: "insensitive" as const },
+              },
+            },
+          },
+          {
+            transactionId: {
+              contains: searchTerm,
+              mode: "insensitive" as const,
+            },
+          },
+        ],
+      }
+    : {};
+  console.log(startDate);
+  if (startDate || endDate) {
+    where.updatedAt = where.updatedAt || {};
+    where.updatedAt = {};
+
+    if (startDate) {
+      where.updatedAt.gte = new Date(startDate);
+    }
+
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      where.updatedAt.lte = end;
+    }
+  }
+
+  const finalWhere = {
+    AND: [where, searchCondition],
+  };
+
+  const [payments, total] = await Promise.all([
+    prisma.payment.findMany({
+      where: finalWhere,
+      ...options,
+
+      include: {
+        appointment: {
+          include: {
+            patient: true,
+            doctor: true,
+            schedule: true,
+          },
+        },
+      },
+    }),
+
+    prisma.payment.count({
+      where: finalWhere,
+    }),
+  ]);
+
+  // Current running month
+  const now = new Date();
+
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+  const [paidAmount, unPaidAmount, currentMonthPaidAmount] = await Promise.all([
+    // Total paid
+    prisma.payment.aggregate({
+      where: {
+        status: "PAID",
+      },
+      _sum: {
+        amount: true,
+      },
+    }),
+
+    // Total unpaid
+    prisma.payment.aggregate({
+      where: {
+        status: "UNPAID",
+      },
+      _sum: {
+        amount: true,
+      },
+    }),
+
+    // Current month's paid amount
+    prisma.payment.aggregate({
+      where: {
+        status: "PAID",
+        createdAt: {
+          gte: startOfMonth,
+          lt: startOfNextMonth,
+        },
+      },
+      _sum: {
+        amount: true,
+      },
+    }),
+  ]);
+
+  return {
+    meta: {
+      total,
+      page: Number(page) || 1,
+      limit: Number(limit) || 10,
+      totalPages: Math.ceil(total / (Number(limit) || 10)),
+    },
+
+    data: {
+      payments,
+      stats: {
+        paidAmount: paidAmount._sum.amount ?? 0,
+        unPaidAmount: unPaidAmount._sum.amount ?? 0,
+        currentMonthPaidAmount: currentMonthPaidAmount._sum.amount ?? 0,
+      },
+    },
+  };
+};
+
 export const paymentServices = {
   getPatientPaymentsService,
   getDoctorEarningsService,
+  getAllPaymentsService,
 };

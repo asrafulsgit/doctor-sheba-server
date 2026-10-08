@@ -2,10 +2,12 @@ import { z } from "zod";
 
  
 
-const getPatientPaymentsValidation = z.object({
+const getPaymentsValidation = z.object({
   query: z.object({
     searchTerm: z.string().optional(),
     status: z.string().optional(),
+    startDate : z.string().optional(),
+    endDate : z.string().optional(),
     page: z.string().optional(),
     limit: z.string().optional(),
     sortBy: z.string().optional(),
@@ -14,10 +16,10 @@ const getPatientPaymentsValidation = z.object({
 });
  
 
-export type GetPatientPaymentsQuery = z.infer<
-  typeof getPatientPaymentsValidation
+export type GetPaymentsQuery = z.infer<
+  typeof getPaymentsValidation
 >["query"];
 
 export const paymentValidators = {
-   getPatientPaymentsValidation
+   getPaymentsValidation
 };

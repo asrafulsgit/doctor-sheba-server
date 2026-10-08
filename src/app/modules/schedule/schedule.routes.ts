@@ -9,13 +9,13 @@ const router = Router();
 
 router.post(
   "/",
-  authentication(UserRole.ADMIN),
+  authentication(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   validateRequest(sheludeValidators.createScheduleSchema),
   scheduleControllers.createScheduleController,
 );
 router.get(
   "/",
-  authentication(UserRole.ADMIN),
+  authentication(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   scheduleControllers.getSchedulesController
 );
 

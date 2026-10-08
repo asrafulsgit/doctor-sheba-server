@@ -22,6 +22,27 @@ const createPatientValidationSchema = z.object({
   }),
 });
 
+const createSuperAdminValidationSchema = z.object({
+  body: z.object({
+    name: z
+      .string()
+      .trim()
+      .min(3, { message: "Name must be at least 3 characters long." }),
+    email: z.string().trim().email({ message: "Invalid email format." }),
+    password: z
+      .string()
+      .trim()
+      .min(8, { message: "Password must be at least 8 characters long." })
+      .regex(
+        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#^()_\-+=<>[\]{}|\\:;"',./~`]).+$/,
+        {
+          message:
+            "Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character.",
+        },
+      ),
+  }),
+});
+
 const GenderEnum = z.enum(["MALE", "FEMALE"]);
 
 const createDoctorValidationSchema = z.object({
@@ -61,4 +82,5 @@ const createDoctorValidationSchema = z.object({
 export const userValidators = {
   createPatientValidationSchema,
   createDoctorValidationSchema,
+  createSuperAdminValidationSchema,
 };

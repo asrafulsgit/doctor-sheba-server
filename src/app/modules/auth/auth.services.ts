@@ -81,7 +81,10 @@ const loginService = async (payload: { email: string; password: string }) => {
         email: user.email,
       },
     });
-  } else if (user.role === UserRole.ADMIN) {
+  } else if (
+    user.role === UserRole.ADMIN ||
+    user.role === UserRole.SUPER_ADMIN
+  ) {
     profileData = await prisma.admin.findUnique({
       where: {
         email: user.email,

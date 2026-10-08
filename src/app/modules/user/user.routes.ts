@@ -9,13 +9,18 @@ const router = Router();
 
 router.get(
   "/",
-  authentication(UserRole.ADMIN),
+  authentication(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   userControllers.getAllUserController,
 );
 
 router.get(
   "/me",
-  authentication(UserRole.ADMIN, UserRole.DOCTOR, UserRole.PATIENT),
+  authentication(
+    UserRole.ADMIN,
+    UserRole.SUPER_ADMIN,
+    UserRole.DOCTOR,
+    UserRole.PATIENT,
+  ),
   userControllers.getMyProfileController,
 );
 
@@ -28,14 +33,14 @@ router.post(
 router.post(
   "/create-doctor",
   validateRequest(userValidators.createDoctorValidationSchema),
-  authentication(UserRole.ADMIN),
+  authentication(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   userControllers.createDoctorController,
 );
 
 router.post(
   "/create-admin",
   validateRequest(userValidators.createPatientValidationSchema),
-  authentication(UserRole.ADMIN),
+  authentication(UserRole.SUPER_ADMIN),
   userControllers.createAdminController,
 );
 

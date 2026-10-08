@@ -153,7 +153,10 @@ const getMyProfileService = async (user: JwtPayload) => {
         email: userInfo.email,
       },
     });
-  } else if (userInfo.role === UserRole.ADMIN) {
+  } else if (
+    userInfo.role === UserRole.ADMIN ||
+    userInfo.role === UserRole.SUPER_ADMIN
+  ) {
     profileData = await prisma.admin.findUnique({
       where: {
         email: userInfo.email,

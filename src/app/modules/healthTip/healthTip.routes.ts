@@ -28,7 +28,7 @@ router.post(
 
 router.delete(
   "/:slug",
-  authentication(UserRole.ADMIN, UserRole.DOCTOR),
+  authentication(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.DOCTOR),
   validateRequest(healthTibValidators.healthTipValidationParams),
   healthTipControllers.deleteHealthTipController,
 );

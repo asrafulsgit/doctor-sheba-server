@@ -11,7 +11,7 @@ const router = Router();
 
 router.get(
   "/",
-  authentication(UserRole.ADMIN),
+  authentication(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   prescriptionControllers.getPrescriptionsController
 );
 

@@ -40,6 +40,7 @@ const getPatientsService = async (query: Record<string, any>) => {
           },
         },
       },
+      user : true
     },
   });
 

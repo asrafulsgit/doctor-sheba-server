@@ -7,7 +7,7 @@ const router = express.Router();
 
 router.get(
   "/admin",
-  authentication(UserRole.ADMIN),
+  authentication(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   metaControllers.getAdminMetaDataController,
 );
 

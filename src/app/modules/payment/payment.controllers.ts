@@ -10,7 +10,7 @@ const getPatientPaymentsController = catchAsync(
     const user = req.user as JwtPayload;
     const result = await paymentServices.getPatientPaymentsService(
       user,
-      req.query as Record<string, any>,
+      req.query,
     );
 
     sendResponse(res, {
@@ -22,13 +22,26 @@ const getPatientPaymentsController = catchAsync(
     });
   },
 );
+const getAllPaymentsController = catchAsync(
+  async (req: Request, res: Response) => {
+    const result = await paymentServices.getAllPaymentsService(req.query);
+
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: "Payments retrieved successfully",
+      data: result.data,
+      meta: result.meta,
+    });
+  },
+);
 
 const getDoctorEarningsController = catchAsync(
   async (req: Request, res: Response) => {
     const user = req.user as JwtPayload;
     const result = await paymentServices.getDoctorEarningsService(
       user,
-      req.query as Record<string, any>,
+      req.query,
     );
 
     sendResponse(res, {
@@ -43,5 +56,6 @@ const getDoctorEarningsController = catchAsync(
 
 export const paymentControllers = {
   getPatientPaymentsController,
-  getDoctorEarningsController
+  getDoctorEarningsController,
+  getAllPaymentsController,
 };

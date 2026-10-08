@@ -5,7 +5,12 @@ import QueryBuilder from "../../utils/queryBuilder";
 import httpStatus from "http-status";
 import { IUpdateDoctor } from "./doctor.interfaces";
 import { JwtPayload } from "jsonwebtoken";
-import { AppointmentStatus, Prisma, UserRole } from "@prisma/client";
+import {
+  AppointmentStatus,
+  Prisma,
+  UserRole,
+  UserStatus,
+} from "@prisma/client";
 import { UpdateDoctorInput } from "./doctor.validation";
 import { deleteCloudinaryImage } from "../../config/cloudinary";
 
@@ -476,11 +481,24 @@ const suspendDoctorService = async (id: string, isDelete: boolean) => {
     );
   }
 
-  await prisma.doctor.update({
-    where: { email: doctorInfo.email },
-    data: {
-      isDeleted: isDelete,
-    },
+  return await prisma.$transaction(async (tnx) => {
+    const updatedDoctor = await tnx.doctor.update({
+      where: { id },
+      data: {
+        isDeleted: isDelete,
+      },
+    });
+
+    await tnx.user.update({
+      where: {
+        email: updatedDoctor.email,
+      },
+      data: {
+        status: isDelete ? UserStatus.DELETED : UserStatus.ACTIVE,
+      },
+    });
+
+    return updatedDoctor;
   });
 };
 
@@ -536,6 +554,7 @@ const getDoctorsAdminService = async (query: Record<string, any>) => {
           },
         },
       },
+      user: true,
     },
   });
 
@@ -567,5 +586,5 @@ export const doctorServices = {
   updateDoctorService,
   getMyDoctorsService,
   suspendDoctorService,
-  getDoctorsAdminService
+  getDoctorsAdminService,
 };
