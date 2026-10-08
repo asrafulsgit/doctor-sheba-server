@@ -9,6 +9,7 @@ import "./app/utils/cronJob";
 import { stripeWebhook } from "./app/modules/payment/payment.services";
 import rateLimitConfig from "./app/config/rateLimt";
 import { createRateLimitMiddleware } from "./app/middlewares/rateLimiter";
+import { createAdmin } from "./app/config/seed";
 
 const app: Application = express();
 
@@ -46,5 +47,7 @@ app.get("/", (req: Request, res: Response) => {
 app.use(globalErrorHandler);
 
 app.use(notFound);
+
+// createAdmin()
 
 export default app;

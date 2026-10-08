@@ -22,7 +22,7 @@ const createPatientValidationSchema = z.object({
   }),
 });
 
-const createSuperAdminValidationSchema = z.object({
+const createAdminValidationSchema = z.object({
   body: z.object({
     name: z
       .string()
@@ -40,6 +40,12 @@ const createSuperAdminValidationSchema = z.object({
             "Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character.",
         },
       ),
+    contactNumber: z
+      .string()
+      .min(10, "Contact number must be at least 10 digits")
+      .max(20, "Contact number must be at most 20 characters")
+      .optional(),
+    role: z.enum(["ADMIN", "SUPER_ADMIN"]),
   }),
 });
 
@@ -70,17 +76,18 @@ const createDoctorValidationSchema = z.object({
     registrationNumber: z.string().min(6, "Registration number is too short"),
     gender: GenderEnum,
     appointmentFee: z.number().int().nonnegative("Fee cannot be negative"),
-    currentWorkingPlace: z
-      .string()
-      .min(2, "Current working place is required"),
+    currentWorkingPlace: z.string().min(2, "Current working place is required"),
     designation: z.string().min(2, "Designation is required"),
     qualification: z.string().min(2, "Qualification is required"),
     specialties: z.array(z.string()),
   }),
 });
+export type CreateAdminInput = z.infer<
+  typeof createAdminValidationSchema
+>["body"];
 
 export const userValidators = {
   createPatientValidationSchema,
   createDoctorValidationSchema,
-  createSuperAdminValidationSchema,
+  createAdminValidationSchema,
 };

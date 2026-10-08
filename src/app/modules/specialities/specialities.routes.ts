@@ -11,7 +11,6 @@ const router = express.Router();
 
 router.get(
   "/",
-  authentication(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   specialitiesControllers.getSpecialitiesController,
 );
 

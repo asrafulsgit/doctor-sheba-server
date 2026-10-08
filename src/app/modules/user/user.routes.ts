@@ -4,14 +4,9 @@ import validateRequest from "../../middlewares/validateRequest";
 import { userValidators } from "./user.validation";
 import { authentication } from "../../middlewares/authentication";
 import { UserRole } from "@prisma/client";
+import { patientValidators } from "../patient/patient.validation";
 
 const router = Router();
-
-router.get(
-  "/",
-  authentication(UserRole.ADMIN, UserRole.SUPER_ADMIN),
-  userControllers.getAllUserController,
-);
 
 router.get(
   "/me",
@@ -39,7 +34,7 @@ router.post(
 
 router.post(
   "/create-admin",
-  validateRequest(userValidators.createPatientValidationSchema),
+  validateRequest(userValidators.createAdminValidationSchema),
   authentication(UserRole.SUPER_ADMIN),
   userControllers.createAdminController,
 );

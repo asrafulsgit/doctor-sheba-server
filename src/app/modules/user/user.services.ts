@@ -3,9 +3,8 @@ import { envVars } from "../../config";
 import { prisma } from "../../shared/prisma";
 import { IDoctor, IPatient } from "./user.interfaces";
 import bcrypt from "bcryptjs";
-import QueryBuilder from "../../utils/queryBuilder";
 import { JwtPayload } from "jsonwebtoken";
-
+import { CreateAdminInput } from "./user.validation";
 const createPatientService = async (payload: IPatient) => {
   const password = await bcrypt.hash(
     payload.password as string,
@@ -62,7 +61,7 @@ const createDoctorService = async (payload: IDoctor) => {
     return doctor;
   });
 };
-const createAdminService = async (payload: IPatient) => {
+const createAdminService = async (payload: CreateAdminInput) => {
   const password = await bcrypt.hash(
     payload.password as string,
     Number(envVars.BCRYPT_SALT),
@@ -73,54 +72,19 @@ const createAdminService = async (payload: IPatient) => {
       data: {
         email: payload.email,
         password,
-        role: UserRole.ADMIN,
+        role: payload.role,
       },
     });
     return await tnx.admin.create({
       data: {
         email: payload.email,
         name: payload.name,
+        contactNumber: payload.contactNumber,
       },
     });
   });
 
   return newAdmin;
-};
-
-const getAllUserService = async (query: Record<string, any>) => {
-  const { where, options } = new QueryBuilder(query)
-    .search(["email"])
-    .filter()
-    .sort()
-    .pagination()
-    .build();
-
-  const users = await prisma.user.findMany({
-    where,
-    ...options,
-    select: {
-      id: true,
-      email: true,
-      role: true,
-      needPasswordChange: true,
-      status: true,
-      isVerified: true,
-      createdAt: true,
-      updatedAt: true,
-    },
-  });
-
-  const total = await prisma.user.count({ where });
-  const limit = Number(query.limit) || 10;
-  return {
-    meta: {
-      total,
-      page: Number(query.page) || 1,
-      limit,
-      totalPages: Math.ceil(total / limit),
-    },
-    data: users,
-  };
 };
 
 const getMyProfileService = async (user: JwtPayload) => {
@@ -174,6 +138,5 @@ export const userServices = {
   createPatientService,
   createDoctorService,
   createAdminService,
-  getAllUserService,
   getMyProfileService,
 };
