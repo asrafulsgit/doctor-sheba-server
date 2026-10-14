@@ -82,6 +82,12 @@ const createDoctorValidationSchema = z.object({
     specialties: z.array(z.string()),
   }),
 });
+export type CreatePatientInput = z.infer<
+  typeof createPatientValidationSchema
+>["body"];
+export type CreateDoctorInput = z.infer<
+  typeof createDoctorValidationSchema
+>["body"];
 export type CreateAdminInput = z.infer<
   typeof createAdminValidationSchema
 >["body"];

@@ -26,6 +26,18 @@ router.post(
   healthTipControllers.createHealthTipController,
 );
 
+router.post(
+  "/:id/view",
+  authentication(
+    UserRole.DOCTOR,
+    UserRole.PATIENT,
+    UserRole.ADMIN,
+    UserRole.SUPER_ADMIN,
+  ),
+  validateRequest(healthTibValidators.healthTipRecordViewParams),
+  healthTipControllers.healthTipRecordViewController,
+);
+
 router.delete(
   "/:slug",
   authentication(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.DOCTOR),

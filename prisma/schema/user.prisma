@@ -13,6 +13,7 @@ model User {
   doctor  Doctor?
   patient Patient?
   helth_tip HealthTip[]
+  healthTipViews HealthTipView[]
 
   @@map("users")
 }

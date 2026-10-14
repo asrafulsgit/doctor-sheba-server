@@ -1,11 +1,14 @@
 import { UserRole, UserStatus } from "@prisma/client";
 import { envVars } from "../../config";
 import { prisma } from "../../shared/prisma";
-import { IDoctor, IPatient } from "./user.interfaces";
 import bcrypt from "bcryptjs";
 import { JwtPayload } from "jsonwebtoken";
-import { CreateAdminInput } from "./user.validation";
-const createPatientService = async (payload: IPatient) => {
+import {
+  CreateAdminInput,
+  CreateDoctorInput,
+  CreatePatientInput,
+} from "./user.validation";
+const createPatientService = async (payload: CreatePatientInput) => {
   const password = await bcrypt.hash(
     payload.password as string,
     Number(envVars.BCRYPT_SALT),
@@ -28,7 +31,7 @@ const createPatientService = async (payload: IPatient) => {
 
   return newPatient;
 };
-const createDoctorService = async (payload: IDoctor) => {
+const createDoctorService = async (payload: CreateDoctorInput) => {
   const password = await bcrypt.hash(
     payload.password as string,
     Number(envVars.BCRYPT_SALT),

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const createHealthTipValidationSchema = z.object({
+const createHealthTipValidationSchema = z.object({
   body: z.object({
     title: z
       .string()
@@ -27,7 +27,7 @@ export const createHealthTipValidationSchema = z.object({
   }),
 });
 
-export const getHealthTipValidationQuery = z.object({
+const getHealthTipValidationQuery = z.object({
   query: z.object({
     searchTerm: z.string().optional(),
     category: z.string().optional(),
@@ -38,9 +38,15 @@ export const getHealthTipValidationQuery = z.object({
   }),
 });
 
-export const healthTipValidationParams = z.object({
+const healthTipValidationParams = z.object({
   params: z.object({
     slug: z.string(),
+  }),
+});
+
+const healthTipRecordViewParams = z.object({
+  params: z.object({
+    id: z.string().uuid("Invalid health tip ID"),
   }),
 });
 
@@ -55,5 +61,6 @@ export type GetHealthTipsQuery = z.infer<
 export const healthTibValidators = {
   createHealthTipValidationSchema,
   getHealthTipValidationQuery,
-  healthTipValidationParams
+  healthTipValidationParams,
+  healthTipRecordViewParams
 };

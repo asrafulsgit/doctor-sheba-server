@@ -51,6 +51,43 @@ const getHealthTipsService = async (query: GetHealthTipsQuery) => {
   };
 };
 
+const healthTipRecordViewService = async (
+  healthTipId: string,
+  userId: string,
+) => {
+  return prisma.$transaction(async (tx) => {
+    const tip = await tx.healthTip.findFirst({
+      where: {
+        id: healthTipId,
+        isPublished: true,
+      },
+      select: { id: true },
+    });
+
+    if (!tip) {
+      throw new Error("HEALTH_TIP_NOT_FOUND");
+    }
+
+    const result = await tx.healthTipView.createMany({
+      data: [{ healthTipId, userId }],
+      skipDuplicates: true,
+    });
+
+    if (result.count === 1) {
+      await tx.healthTip.update({
+        where: { id: healthTipId },
+        data: {
+          views: { increment: 1 },
+        },
+      });
+    }
+
+    return {
+      counted: result.count === 1,
+    };
+  });
+};
+
 const getHealthTipService = async (slug: string) => {
   return await prisma.healthTip.findFirst({
     where: {
@@ -70,6 +107,7 @@ const deleteHealhTipService = async (authorId: string, slug: string) => {
 
 export const healthTipServices = {
   createHealthTipService,
+  healthTipRecordViewService,
   getHealthTipsService,
   getHealthTipService,
   deleteHealhTipService,

@@ -13,9 +13,26 @@ model HealthTip {
     views       Int     @default(0)
     isPublished Boolean @default(true)
 
+    tipViews HealthTipView[]
+
     publishedAt DateTime?
     createdAt   DateTime  @default(now())
     updatedAt   DateTime  @updatedAt
 
     @@map("health_tips")
+}
+
+model HealthTipView {
+    id          String   @id @default(uuid())
+    healthTipId String
+    userId      String
+    viewedAt    DateTime @default(now())
+
+    healthTip HealthTip @relation(fields: [healthTipId], references: [id], onDelete: Cascade)
+
+    user User @relation( fields: [userId], references: [id], onDelete: Cascade)
+
+    @@unique([healthTipId, userId])
+    @@index([userId])
+    @@map("health_tip_views")
 }

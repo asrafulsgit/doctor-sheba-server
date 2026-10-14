@@ -43,6 +43,25 @@ const getHealthTipController = catchAsync(
   },
 );
 
+const healthTipRecordViewController = catchAsync(
+  async (req: Request, res: Response) => {
+    const userId = req.user.id as string;
+    const tipId = req.params.id as string;
+    const result = await healthTipServices.healthTipRecordViewService(
+      tipId,
+      userId,
+    );
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: result.counted
+        ? "Health tip view recorded successfully"
+        : "Health tip already viewed",
+      data: result,
+    });
+  },
+);
+
 const deleteHealthTipController = catchAsync(
   async (req: Request, res: Response) => {
     const { id } = req.user;
@@ -59,6 +78,7 @@ const deleteHealthTipController = catchAsync(
 
 export const healthTipControllers = {
   createHealthTipController,
+  healthTipRecordViewController,
   getHealthTipsController,
   getHealthTipController,
   deleteHealthTipController,
