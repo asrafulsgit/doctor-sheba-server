@@ -21,7 +21,41 @@ const createHealthTipValidationSchema = z.object({
       .trim()
       .min(50, "Content must be at least 50 characters"),
 
-    icon: z.string(),
+    icon: z.string().optional(),
+
+    isPublished: z.boolean().optional(),
+  }),
+});
+
+const updateHealthTipValidationSchema = z.object({
+  body: z.object({
+    title: z
+      .string()
+      .trim()
+      .min(3, "Title must be at least 3 characters")
+      .max(200, "Title cannot exceed 200 characters")
+      .optional(),
+
+    category: z
+      .string()
+      .trim()
+      .min(2, "Category must be at least 2 characters")
+      .max(100, "Category cannot exceed 100 characters")
+      .optional(),
+
+    excerpt: z
+      .string()
+      .trim()
+      .max(500, "Excerpt cannot exceed 500 characters")
+      .optional(),
+
+    content: z
+      .string()
+      .trim()
+      .min(50, "Content must be at least 50 characters")
+      .optional(),
+
+    icon: z.string().optional(),
 
     isPublished: z.boolean().optional(),
   }),
@@ -54,12 +88,17 @@ export type CreateHealthTipInput = z.infer<
   typeof createHealthTipValidationSchema
 >["body"];
 
+export type UpdateHealthTipInput = z.infer<
+  typeof updateHealthTipValidationSchema
+>["body"];
+
 export type GetHealthTipsQuery = z.infer<
   typeof getHealthTipValidationQuery
 >["query"];
 
 export const healthTibValidators = {
   createHealthTipValidationSchema,
+  updateHealthTipValidationSchema,
   getHealthTipValidationQuery,
   healthTipValidationParams,
   healthTipRecordViewParams

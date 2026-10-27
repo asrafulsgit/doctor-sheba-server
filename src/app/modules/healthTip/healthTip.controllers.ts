@@ -18,6 +18,21 @@ const createHealthTipController = catchAsync(
   },
 );
 
+const updateHealthTipController = catchAsync(
+  async (req: Request, res: Response) => {
+    const { id } = req.user;
+    const { slug } = req.params;
+    const result = await healthTipServices.updateHealthTipService(id,slug, req.body);
+
+    sendResponse(res, {
+      statusCode: httpStatus.CREATED,
+      success: true,
+      message: "Health tip updated successfully!",
+      data: result,
+    });
+  },
+);
+
 const getHealthTipsController = catchAsync(
   async (req: Request, res: Response) => {
     const result = await healthTipServices.getHealthTipsService(req.query);
@@ -30,6 +45,20 @@ const getHealthTipsController = catchAsync(
     });
   },
 );
+
+const getMyHealthTipsController = catchAsync(
+  async (req: Request, res: Response) => {
+    const { id } = req.user;
+    const result = await healthTipServices.getMyHealthTipsService(id);
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: "My health tips fetched successfully",
+      data: result,
+    });
+  },
+);
+
 const getHealthTipController = catchAsync(
   async (req: Request, res: Response) => {
     const { slug } = req.params;
@@ -78,8 +107,10 @@ const deleteHealthTipController = catchAsync(
 
 export const healthTipControllers = {
   createHealthTipController,
+  updateHealthTipController,
   healthTipRecordViewController,
   getHealthTipsController,
+  getMyHealthTipsController,
   getHealthTipController,
   deleteHealthTipController,
 };

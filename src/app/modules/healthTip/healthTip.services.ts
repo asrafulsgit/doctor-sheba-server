@@ -1,10 +1,13 @@
+import AppError from "../../errorHelpers/appError";
 import { prisma } from "../../shared/prisma";
 import { getSlug } from "../../utils/getSlug";
 import QueryBuilder from "../../utils/queryBuilder";
 import {
   CreateHealthTipInput,
   GetHealthTipsQuery,
+  UpdateHealthTipInput,
 } from "./healthTip.validation";
+import httpStatus from "http-status";
 
 const createHealthTipService = async (
   authorId: string,
@@ -16,10 +19,56 @@ const createHealthTipService = async (
       ...data,
       slug,
       authorId,
+      publishedAt: data.isPublished ? new Date() : null,
     },
   });
 
   return result;
+};
+
+const updateHealthTipService = async (
+  authorId: string,
+  slug: string,
+  data: UpdateHealthTipInput,
+) => {
+  const existingTip = await prisma.healthTip.findFirst({
+    where: {
+      slug,
+      authorId,
+    },
+    select: {
+      id: true,
+      isPublished: true,
+      publishedAt: true,
+    },
+  });
+  if (!existingTip) {
+    throw new AppError(httpStatus.NOT_FOUND, "Health tip not found");
+  }
+
+  const updateData = {
+    ...data,
+    ...(data.title
+      ? {
+          slug: getSlug(data.title),
+        }
+      : {}),
+    ...(data.isPublished !== undefined
+      ? {
+          publishedAt: data.isPublished
+            ? (existingTip.publishedAt ?? new Date())
+            : null,
+        }
+      : {}),
+  };
+
+  return prisma.healthTip.update({
+    where: {
+      slug,
+      authorId,
+    },
+    data: updateData,
+  });
 };
 
 const getHealthTipsService = async (query: GetHealthTipsQuery) => {
@@ -31,7 +80,33 @@ const getHealthTipsService = async (query: GetHealthTipsQuery) => {
     .pagination()
     .build();
   const healthTips = await prisma.healthTip.findMany({
-    where,
+    where: {
+      ...where,
+      isPublished: true,
+    },
+    select: {
+      id: true,
+      title: true,
+      slug: true,
+      category: true,
+      excerpt: true,
+      content: true,
+      icon: true,
+      views: true,
+      isPublished: true,
+      publishedAt: true,
+      createdAt: true,
+      updatedAt: true,
+      author: {
+        select: {
+          doctor: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      },
+    },
     ...options,
   });
 
@@ -48,6 +123,36 @@ const getHealthTipsService = async (query: GetHealthTipsQuery) => {
       totalPages: Math.ceil(total / limitNumber),
     },
     data: healthTips,
+  };
+};
+
+const getMyHealthTipsService = async (authorId: string) => {
+  const where = { authorId };
+  const [aggregate, publishedTips, data] = await Promise.all([
+    prisma.healthTip.aggregate({
+      where,
+      _count: { id: true },
+      _sum: { views: true },
+    }),
+    prisma.healthTip.count({
+      where: {
+        ...where,
+        isPublished: true,
+      },
+    }),
+    prisma.healthTip.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
+
+  return {
+    stats: {
+      tipsCount: aggregate._count.id,
+      publishedTips,
+      totalViews: aggregate._sum.views ?? 0,
+    },
+    tips: data,
   };
 };
 
@@ -93,6 +198,43 @@ const getHealthTipService = async (slug: string) => {
     where: {
       slug,
     },
+    select: {
+      id: true,
+      title: true,
+      slug: true,
+      category: true,
+      excerpt: true,
+      content: true,
+      icon: true,
+      views: true,
+      isPublished: true,
+      publishedAt: true,
+      createdAt: true,
+      updatedAt: true,
+      authorId: true,
+      author: {
+        select: {
+          doctor: {
+            select: {
+              id: true,
+              name: true,
+              profilePhoto: true,
+              designation: true,
+              averageRating: true,
+              doctorSpecialities: {
+                select: {
+                  specialities: true,
+                },
+              },
+              qualification: true,
+              currentWorkingPlace: true,
+              experience: true,
+              appointmentFee: true,
+            },
+          },
+        },
+      },
+    },
   });
 };
 
@@ -107,8 +249,10 @@ const deleteHealhTipService = async (authorId: string, slug: string) => {
 
 export const healthTipServices = {
   createHealthTipService,
+  updateHealthTipService,
   healthTipRecordViewService,
   getHealthTipsService,
+  getMyHealthTipsService,
   getHealthTipService,
   deleteHealhTipService,
 };

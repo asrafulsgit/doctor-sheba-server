@@ -9,6 +9,12 @@ import { healthTibValidators } from "./healthTip.validation";
 const router = express.Router();
 
 router.get(
+  "/my",
+  authentication(UserRole.DOCTOR),
+  healthTipControllers.getMyHealthTipsController,
+);
+
+router.get(
   "/",
   validateRequest(healthTibValidators.getHealthTipValidationQuery),
   healthTipControllers.getHealthTipsController,
@@ -36,6 +42,13 @@ router.post(
   ),
   validateRequest(healthTibValidators.healthTipRecordViewParams),
   healthTipControllers.healthTipRecordViewController,
+);
+
+router.patch(
+  "/:slug",
+  authentication(UserRole.DOCTOR),
+  validateRequest(healthTibValidators.updateHealthTipValidationSchema),
+  healthTipControllers.updateHealthTipController,
 );
 
 router.delete(
