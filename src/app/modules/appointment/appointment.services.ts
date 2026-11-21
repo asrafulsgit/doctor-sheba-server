@@ -2,8 +2,8 @@ import AppError from "../../errorHelpers/appError";
 import { prisma } from "../../shared/prisma";
 import httpStatus from "http-status";
 import { JwtPayload } from "jsonwebtoken";
-import { v4 as uuidv4 } from "uuid";
 import { createPaymentSession } from "../../utils/paymentSession";
+import { v4 as uuidv4 } from "uuid";
 import QueryBuilder from "../../utils/queryBuilder";
 import { AppointmentStatus, PaymentStatus, UserRole } from "@prisma/client";
 
@@ -55,8 +55,6 @@ const createAppointmentService = async (
     );
   }
 
-  const videoCallingId = `VC-${uuidv4()}`;
-
   const existingAppointment = await prisma.appointment.findFirst({
     where: {
       patientId: patient.id,
@@ -79,8 +77,7 @@ const createAppointmentService = async (
       data: {
         patientId: patient.id,
         doctorId: doctor.id,
-        scheduleId: payload.scheduleId,
-        videoCallingId,
+        scheduleId: payload.scheduleId
       },
     });
 

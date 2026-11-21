@@ -127,6 +127,12 @@ STRIPE_WEBHOOK_SECRET=
 STRIPE_SUCCESS_URL=
 STRIPE_CANCEL_URL=
 
+# Google Calendar OAuth
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_REDIRECT_URI=http://localhost:5000/api/v1/auth/google-calendar/callback
+GOOGLE_REFRESH_TOKEN=
+GOOGLE_CALENDAR_ID=primary
 
 # CLOUDINAY
 CLOUD_NAME =
@@ -165,3 +171,9 @@ Running the project
 ```bash
 pnpm  dev
 ```
+
+To obtain a Google Calendar refresh token, configure the same
+`GOOGLE_REDIRECT_URI` in the Google Cloud OAuth client, sign in as an admin,
+then open `GET /api/v1/auth/google-calendar/authorize`. After approving access,
+the callback returns the refresh token once. Copy it to `GOOGLE_REFRESH_TOKEN`
+and keep it secret.

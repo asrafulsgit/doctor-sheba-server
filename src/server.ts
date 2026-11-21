@@ -2,6 +2,7 @@ import { Server } from 'http';
 import app from './app'; 
 import { envVars } from './app/config';
 import { redisConnection } from './app/config/redis';
+import './app/utils/workers';
 
 async function bootstrap() {
     // This variable will hold our server instance

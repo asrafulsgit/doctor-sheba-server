@@ -43,3 +43,9 @@ enum MaritalStatus {
   MARRIED
   UNMARRIED
 }
+
+enum videoCallingStatus {
+  PENDING
+  CREATED
+  FAILED
+}

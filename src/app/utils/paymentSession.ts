@@ -22,6 +22,12 @@ export const createPaymentSession = async ({
       appointmentId,
       paymentId
     },
+    payment_intent_data: {
+      metadata: {
+        appointmentId,
+        paymentId,
+      },
+    },
 
     line_items: [
       {

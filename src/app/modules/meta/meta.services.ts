@@ -55,7 +55,7 @@ const getPatientMetaData = async (user: JwtPayload) => {
     // saved medical reports
     prisma.medicalReport.count({ where: { patientId } }),
 
-    // next 3 upcoming appointments with full doctor info
+    // next 1 upcoming appointments with full doctor info
     prisma.appointment.findMany({
       where: {
         patientId,
@@ -63,7 +63,7 @@ const getPatientMetaData = async (user: JwtPayload) => {
         schedule: { startDateTime: { gte: now } },
       },
       orderBy: { schedule: { startDateTime: "asc" } },
-      take: 3,
+      take: 1,
       include: {
         doctor: {
           include: {
@@ -284,6 +284,35 @@ const getAdminMetaDataService = async () => {
   };
 };
 
+const getApplicationDataService = async () => {
+  const [
+    doctorsCount,
+    specialtiesCount,
+    doctorsAverageRating,
+    patientsCount,
+    appointmentsCount,
+  ] = await Promise.all([
+    prisma.doctor.count({ where: { isDeleted: false } }),
+    prisma.specialities.count(),
+    prisma.doctor.aggregate({
+      where: { isDeleted: false },
+      _avg: { averageRating: true },
+    }),
+    prisma.patient.count({ where: { isDeleted: false } }),
+    prisma.appointment.count({
+      where: { status: { not: AppointmentStatus.CANCELED } },
+    }),
+  ]);
+
+  return {
+    doctorsCount,
+    specialtiesCount,
+    totalDoctorsAvgRatings: doctorsAverageRating._avg.averageRating ?? 0,
+    patientsCount,
+    appointmentsCount,
+  };
+};
+
 const getDoctorMetaData = async (user: JwtPayload) => {
   const doctorData = await prisma.doctor.findUniqueOrThrow({
     where: {
@@ -423,8 +452,11 @@ const getDoctorMetaData = async (user: JwtPayload) => {
   };
 };
 
+
+
 export const metaServices = {
   getPatientMetaDataService,
   getDoctorMetaDataService,
   getAdminMetaDataService,
+  getApplicationDataService,
 };

@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { PaymentStatus } from "@prisma/client";
+import { PaymentStatus, Prisma } from "@prisma/client";
 import { JwtPayload } from "jsonwebtoken";
 import { stripe } from "../../config/stripe";
 import { envVars } from "../../config";
@@ -8,65 +8,151 @@ import { prisma } from "../../shared/prisma";
 import QueryBuilder from "../../utils/queryBuilder";
 import httpStatus from "http-status";
 import { GetPaymentsQuery } from "./payment.validation";
+import Stripe from "stripe";
+import { meetingQueue } from "../../utils/queues";
+
+const markPaymentAsPaidAndQueueMeeting = async (
+  appointmentId: string,
+  paymentId: string,
+  paymentGatewayData: Prisma.InputJsonValue,
+) => {
+  const paymentMatchesAppointment = await prisma.$transaction(async (tx) => {
+    const payment = await tx.payment.findUnique({
+      where: { id: paymentId },
+      select: { appointmentId: true },
+    });
+
+    if (!payment || payment.appointmentId !== appointmentId) {
+      return false;
+    }
+
+    await tx.appointment.update({
+      where: { id: appointmentId },
+      data: { paymentStatus: PaymentStatus.PAID },
+    });
+
+    await tx.payment.update({
+      where: { id: paymentId },
+      data: {
+        status: PaymentStatus.PAID,
+        paymentGatewayData,
+      },
+    });
+
+    return true;
+  });
+
+  if (!paymentMatchesAppointment) {
+    throw new Error(
+      `Stripe payment does not match appointment ${appointmentId}`,
+    );
+  }
+
+  const job = await meetingQueue.add(
+    "create-google-meet",
+    { appointmentId },
+    {
+      jobId: `google-meet-${appointmentId}`,
+      attempts: 5,
+      backoff: {
+        type: "exponential",
+        delay: 5000,
+      },
+    },
+  );
+
+  console.info("Queued meeting creation after successful payment", {
+    appointmentId,
+    jobId: job.id,
+  });
+};
 
 export const stripeWebhook = async (req: Request, res: Response) => {
-  let event = req.body;
-  const endpointSecret = envVars.STRIPE_WEBHOOK_SECRET;
+  const signature = req.headers["stripe-signature"];
 
-  if (endpointSecret) {
-    const signature = req.headers["stripe-signature"] as string;
-    try {
-      event = stripe.webhooks.constructEvent(
-        req.body,
-        signature,
-        endpointSecret,
-      );
-    } catch (err: any) {
-      console.log(`⚠️  Webhook signature verification failed.`, err.message);
-      return res.status(400).send(`Webhook Error ${err.message}`);
-    }
+  if (!Buffer.isBuffer(req.body) || typeof signature !== "string") {
+    return res.status(400).send("Invalid Stripe webhook request");
+  }
+
+  let event: Stripe.Event;
+  try {
+    event = stripe.webhooks.constructEvent(
+      req.body,
+      signature,
+      envVars.STRIPE_WEBHOOK_SECRET,
+    );
+  } catch (error) {
+    console.error("Stripe webhook signature verification failed:", error);
+    return res.status(400).send("Invalid Stripe webhook signature");
   }
 
   switch (event.type) {
     case "checkout.session.completed":
-      const session = event.data.object as any;
+    case "checkout.session.async_payment_succeeded": {
+      const session = event.data.object;
+      if (session.payment_status !== "paid") {
+        break;
+      }
+
       const appointmentId = session.metadata?.appointmentId;
       const paymentId = session.metadata?.paymentId;
 
-      await prisma.appointment.update({
-        where: { id: appointmentId },
-        data: {
-          paymentStatus:
-            session.payment_status === "paid"
-              ? PaymentStatus.PAID
-              : PaymentStatus.UNPAID,
-        },
+      if (!appointmentId || !paymentId) {
+        console.error("Missing appointment or payment metadata", session.id);
+        return res.status(400).send("Missing appointment or payment metadata");
+      }
+
+      await markPaymentAsPaidAndQueueMeeting(appointmentId, paymentId, {
+        currency: session.currency,
+        customer_details: session.customer_details
+          ? {
+              name: session.customer_details.name,
+              email: session.customer_details.email,
+              phone: session.customer_details.phone,
+              address: session.customer_details.address
+                ? {
+                    city: session.customer_details.address.city,
+                    country: session.customer_details.address.country,
+                    line1: session.customer_details.address.line1,
+                    line2: session.customer_details.address.line2,
+                    postal_code: session.customer_details.address.postal_code,
+                    state: session.customer_details.address.state,
+                  }
+                : null,
+            }
+          : null,
+        method: session.payment_method_types,
       });
-      await prisma.payment.update({
-        where: { id: paymentId },
-        data: {
-          status:
-            session.payment_status === "paid"
-              ? PaymentStatus.PAID
-              : PaymentStatus.UNPAID,
-          paymentGatewayData: {
-            currency: session.currency,
-            customer_details: session.customer_details,
-            method: session.payment_method_types,
-          },
-        },
-      });
+
       break;
+    }
+    case "payment_intent.succeeded": {
+      const paymentIntent = event.data.object;
+      const appointmentId = paymentIntent.metadata.appointmentId;
+      const paymentId = paymentIntent.metadata.paymentId;
+
+      if (!appointmentId || !paymentId) {
+        console.error(
+          "Missing appointment or payment metadata",
+          paymentIntent.id,
+        );
+        return res.status(400).send("Missing appointment or payment metadata");
+      }
+
+      await markPaymentAsPaidAndQueueMeeting(appointmentId, paymentId, {
+        paymentIntentId: paymentIntent.id,
+        currency: paymentIntent.currency,
+        method: paymentIntent.payment_method_types,
+      });
+
+      break;
+    }
     case "payment_intent.payment_failed":
-      const failedIntent = event.data.object as any;
-      console.log("Payment failed:", failedIntent.id);
-      break;
     case "charge.refunded":
-      const refund = event.data.object as any;
-      console.log("Refund processed:", refund.id);
+      console.info(`Received Stripe event: ${event.type}`);
       break;
     default:
-      console.log(`Unhandled event type ${event.type}`);
+      console.info(`Unhandled Stripe event type: ${event.type}`);
   }
   res.json({ received: true });
 };

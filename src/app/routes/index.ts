@@ -77,7 +77,7 @@ const moduleRoutes = [
   {
     path: "/admin",
     route: adminRouter,
-  },
+  }
 ];
 
 moduleRoutes.forEach((route) => router.use(route.path, route.route));

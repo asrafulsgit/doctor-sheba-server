@@ -28,6 +28,11 @@ interface EnvConfig {
   FIREBASE_PROJECT_ID: string;
   FIREBASE_PRIVATE_KEY: string;
   FIREBASE_CLIENT_EMAIL: string;
+  GOOGLE_CLIENT_ID: string;
+  GOOGLE_CLIENT_SECRET: string;
+  GOOGLE_REDIRECT_URI: string;
+  GOOGLE_REFRESH_TOKEN: string;
+  GOOGLE_CALENDAR_ID: string;
 }
 
 const loadEnvVariables = (): EnvConfig => {
@@ -59,6 +64,10 @@ const loadEnvVariables = (): EnvConfig => {
     "FIREBASE_PROJECT_ID",
     "FIREBASE_PRIVATE_KEY",
     "FIREBASE_CLIENT_EMAIL",
+    "GOOGLE_CLIENT_ID",
+    "GOOGLE_CLIENT_SECRET",
+    "GOOGLE_REDIRECT_URI",
+    "GOOGLE_CALENDAR_ID",
   ];
 
   requiredEnvVariables.forEach((key) => {
@@ -97,6 +106,11 @@ const loadEnvVariables = (): EnvConfig => {
     FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID as string,
     FIREBASE_PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY as string,
     FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL as string,
+    GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID as string,
+    GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET as string,
+    GOOGLE_REDIRECT_URI: process.env.GOOGLE_REDIRECT_URI as string,
+    GOOGLE_REFRESH_TOKEN: process.env.GOOGLE_REFRESH_TOKEN ?? "",
+    GOOGLE_CALENDAR_ID: process.env.GOOGLE_CALENDAR_ID as string,
   };
 };
 
