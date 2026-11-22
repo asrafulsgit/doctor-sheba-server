@@ -87,13 +87,68 @@ export const getGoogleMeet = async (eventId: string) => {
   const conferenceStatus =
     event.conferenceData?.createRequest?.status?.statusCode;
 
+  const meetLink = event.hangoutLink ?? null;
+
+  if (conferenceStatus !== "success" || !meetLink) {
+    return {
+      eventId: event.id,
+      meetLink: null,
+      status: conferenceStatus ?? "pending",
+      accessType: null,
+    };
+  }
+
+  // Configure public access
+  const updatedSpace = await makeMeetingPublic(meetLink);
+
   return {
     eventId: event.id,
-    meetLink: event.hangoutLink ?? null,
-    status: conferenceStatus ?? "pending",
+    meetLink,
+    status: conferenceStatus,
+    accessType: updatedSpace?.config?.accessType,
   };
 };
 
+
+
+export const makeMeetingPublic = async (meetLink: string) => {
+  const meetingCode = new URL(meetLink).pathname
+    .split("/")
+    .filter(Boolean)
+    .pop();
+
+  if (!meetingCode) {
+    throw new Error("Invalid Google Meet link");
+  }
+
+  // Get the Meet space
+  const { data: space } = await oauth2Client.request<{ name?: string }>({
+    url: `https://meet.googleapis.com/v2/spaces/${meetingCode}`,
+    method: "GET",
+  });
+
+  if (!space?.name) {
+    throw new Error("Google Meet space not found");
+  }
+
+  // Allow anyone
+  const { data: updatedSpace } = await oauth2Client.request<{
+    config?: { accessType?: string };
+  }>({
+    url: `https://meet.googleapis.com/v2/${space.name}`,
+    method: "PATCH",
+    params: {
+      updateMask: "config.accessType",
+    },
+    data: {
+      config: {
+        accessType: "OPEN",
+      },
+    },
+  });
+
+  return updatedSpace;
+};
 
 export const googleAuth = async (req: Request, res: Response) => {
   const authUrl = oauth2Client.generateAuthUrl({
@@ -101,6 +156,7 @@ export const googleAuth = async (req: Request, res: Response) => {
     prompt: "consent",
     scope: [
       "https://www.googleapis.com/auth/calendar.events",
+      "https://www.googleapis.com/auth/meetings.space.settings"
     ],
   });
 

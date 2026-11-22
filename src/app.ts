@@ -9,6 +9,7 @@ import "./app/utils/cronJob";
 import { stripeWebhook } from "./app/modules/payment/payment.services";
 import rateLimitConfig from "./app/config/rateLimt";
 import { createRateLimitMiddleware } from "./app/middlewares/rateLimiter";
+import { googleRouter } from "./app/modules/appointment/googleCalendar/googleCalender.routes";
 
 const app: Application = express();
 
@@ -33,7 +34,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use(createRateLimitMiddleware(rateLimitConfig.global))
-// app.use(googleRouter);
+app.use(googleRouter);
 app.use("/api/v1", router);
 
 app.get("/", (req: Request, res: Response) => {

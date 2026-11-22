@@ -36,7 +36,6 @@ export const meetingWorker = new Worker(
         startTime: appointment.schedule.startDateTime,
         endTime: appointment.schedule.endDateTime,
       });
-      console.log(meeting)
       eventId = meeting.eventId;
 
       await prisma.appointment.update({

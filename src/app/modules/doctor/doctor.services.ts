@@ -284,7 +284,7 @@ const getPatientRecordService = async (user: JwtPayload, patientId: string) => {
     ...rest,
     lastVisit: appointments[0]?.schedule?.startDateTime ?? null,
     totalVisits: _count.appointments,
-    lastConsultant: appointments[0].doctor,
+    lastConsultant: appointments[0]?.doctor,
   };
 
   return data;
