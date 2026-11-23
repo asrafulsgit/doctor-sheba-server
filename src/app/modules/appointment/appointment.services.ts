@@ -346,45 +346,65 @@ const updateAppointmentStatusService = async (
   status: AppointmentStatus,
   user: JwtPayload,
 ) => {
+  if (!Object.values(AppointmentStatus).includes(status)) {
+    throw new AppError(httpStatus.BAD_REQUEST, "Invalid appointment status");
+  }
+
+  const isDoctor = user.role === UserRole.DOCTOR;
+  const isAdmin =
+    user.role === UserRole.ADMIN || user.role === UserRole.SUPER_ADMIN;
+
+  if (!isDoctor && !isAdmin) {
+    throw new AppError(
+      httpStatus.FORBIDDEN,
+      "You are not allowed to update appointment status",
+    );
+  }
+
   const appointmentData = await prisma.appointment.findUniqueOrThrow({
     where: {
       id: appointmentId,
     },
     include: {
-      doctor: true,
-      patient: true,
-      schedule: true,
+      doctor: { select: { email: true } },
       payments: true,
     },
   });
-
-  const isDoctor = user.role === UserRole.DOCTOR;
 
   if (isDoctor && user.email !== appointmentData.doctor.email) {
     throw new AppError(httpStatus.FORBIDDEN, "This is not your appointment");
   }
 
-  if (appointmentData.status !== AppointmentStatus.SCHEDULED) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      `Cannot update an appointment with status ${appointmentData.status}`,
-    );
+  const currentStatus = appointmentData.status;
+
+  if (currentStatus === status) {
+    return appointmentData;
+  }
+
+  if (isDoctor) {
+    const allowedTransitions: Record<AppointmentStatus, AppointmentStatus[]> = {
+      [AppointmentStatus.SCHEDULED]: [AppointmentStatus.CANCELED,AppointmentStatus.INPROGRESS],
+      [AppointmentStatus.INPROGRESS]: [AppointmentStatus.COMPLETED],
+      [AppointmentStatus.COMPLETED]: [],
+      [AppointmentStatus.CANCELED]: [],
+    };
+
+    if (!allowedTransitions[currentStatus].includes(status)) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        `Cannot change appointment status from ${currentStatus} to ${status}`,
+      );
+    }
   }
 
   const isCancelling = status === AppointmentStatus.CANCELED;
-
-  if (isDoctor && !isCancelling) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      "Invalid appointment status transition",
-    );
-  }
   let refundId: string | null = null;
+
   const result = await prisma.$transaction(async (tx) => {
     const updated = await tx.appointment.updateMany({
       where: {
         id: appointmentId,
-        status: AppointmentStatus.SCHEDULED,
+        status: currentStatus,
       },
       data: {
         status,

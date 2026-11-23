@@ -32,7 +32,6 @@ router.patch(
     UserRole.ADMIN,
     UserRole.SUPER_ADMIN,
     UserRole.DOCTOR,
-    UserRole.PATIENT,
   ),
   appointmentControllers.updateAppointmentStatusController,
 );

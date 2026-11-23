@@ -66,8 +66,6 @@ const getPatientPaymentsService = async (
     },
   });
 
-  const paymentsall = await prisma.payment.findMany();
-
   const total = await prisma.payment.count({ where });
   const paidAmount = payments
     .filter((payment) => payment.status === PaymentStatus.PAID)
@@ -84,8 +82,7 @@ const getPatientPaymentsService = async (
       paid: paidAmount,
       due: dueAmount,
       transactions: payments.length,
-      payments,
-      paymentsall,
+      payments
     },
     meta: {
       total,
