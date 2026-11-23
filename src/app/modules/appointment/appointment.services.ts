@@ -5,7 +5,13 @@ import { JwtPayload } from "jsonwebtoken";
 import { createPaymentSession } from "../../utils/paymentSession";
 import { v4 as uuidv4 } from "uuid";
 import QueryBuilder from "../../utils/queryBuilder";
-import { AppointmentStatus, PaymentStatus, UserRole } from "@prisma/client";
+import {
+  AppointmentStatus,
+  PaymentStatus,
+  RefundStatus,
+  UserRole,
+} from "@prisma/client";
+import { refundQueue } from "../../utils/queues";
 
 const createAppointmentService = async (
   user: JwtPayload,
@@ -48,7 +54,7 @@ const createAppointmentService = async (
   }
 
   const now = new Date();
-  if (doctorSchedule.schedule.startDateTime < now) {
+  if (doctorSchedule.schedule.startDateTime <= now) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
       "Cannot book appointment for past schedule",
@@ -77,7 +83,7 @@ const createAppointmentService = async (
       data: {
         patientId: patient.id,
         doctorId: doctor.id,
-        scheduleId: payload.scheduleId
+        scheduleId: payload.scheduleId,
       },
     });
 
@@ -103,18 +109,36 @@ const createAppointmentService = async (
       },
     });
 
-    const sessionData = {
+    return {
       appointmentId: appointmentData.id,
       paymentId: payment.id,
-      appointmentFee: payment.amount,
-      docotorName: doctor.name,
+      amount: payment.amount,
+      doctorName: doctor.name,
     };
-
-    const paymentSession = await createPaymentSession(sessionData);
-    return { session_url: paymentSession.url };
   });
 
-  return newAppointment;
+  const sessionData = {
+    appointmentId: newAppointment.appointmentId,
+    paymentId: newAppointment.paymentId,
+    appointmentFee: newAppointment.amount,
+    docotorName: newAppointment.doctorName,
+  };
+
+  const paymentSession = await createPaymentSession(
+    sessionData,
+    `doctor-sheba-checkout-${newAppointment.paymentId}`,
+  );
+  await prisma.payment.update({
+    where: {
+      id: newAppointment.paymentId,
+    },
+    data: {
+      stripeCheckoutSessionId: paymentSession.id,
+      checkoutSessionUrl: paymentSession.url,
+      expiresAt: new Date(paymentSession.expires_at * 1000),
+    },
+  });
+  return { newAppointment, session_url: paymentSession.url };
 };
 
 const myAppointmentsService = async (
@@ -330,57 +354,111 @@ const updateAppointmentStatusService = async (
       doctor: true,
       patient: true,
       schedule: true,
+      payments: true,
     },
   });
 
-  if (user?.role === UserRole.DOCTOR) {
-    if (!(user?.email === appointmentData.doctor.email))
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        "This is not your appointment",
-      );
-  }
-  const isPatient = user?.role === UserRole.PATIENT;
-  if (isPatient) {
-    if (user?.email !== appointmentData.patient.email)
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        "This is not your appointment",
-      );
+  const isDoctor = user.role === UserRole.DOCTOR;
 
-    if (
-      appointmentData.status !== AppointmentStatus.SCHEDULED &&
-      status !== AppointmentStatus.CANCELED
-    )
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        `You are not allowed to change the ${appointmentData.status} appointment status`,
-      );
+  if (isDoctor && user.email !== appointmentData.doctor.email) {
+    throw new AppError(httpStatus.FORBIDDEN, "This is not your appointment");
   }
 
-  const appointment = await prisma.appointment.update({
-    where: {
-      id: appointmentId,
-    },
-    data: {
-      status,
-    },
-  });
+  if (appointmentData.status !== AppointmentStatus.SCHEDULED) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      `Cannot update an appointment with status ${appointmentData.status}`,
+    );
+  }
 
-  if (isPatient) {
-    await prisma.doctorSchedules.update({
+  const isCancelling = status === AppointmentStatus.CANCELED;
+
+  if (isDoctor && !isCancelling) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      "Invalid appointment status transition",
+    );
+  }
+  let refundId: string | null = null;
+  const result = await prisma.$transaction(async (tx) => {
+    const updated = await tx.appointment.updateMany({
       where: {
-        doctorId_scheduleId: {
-          doctorId: appointmentData.doctorId,
-          scheduleId: appointmentData.scheduleId,
-        },
+        id: appointmentId,
+        status: AppointmentStatus.SCHEDULED,
       },
       data: {
-        isBooked: false,
+        status,
       },
     });
+
+    if (updated.count === 0) {
+      throw new AppError(
+        httpStatus.CONFLICT,
+        "Appointment status has already changed",
+      );
+    }
+
+    if (isCancelling) {
+      await tx.doctorSchedules.update({
+        where: {
+          doctorId_scheduleId: {
+            doctorId: appointmentData.doctorId,
+            scheduleId: appointmentData.scheduleId,
+          },
+        },
+        data: {
+          isBooked: false,
+        },
+      });
+
+      const payment = await tx.payment.findFirst({
+        where: {
+          appointmentId,
+        },
+      });
+
+      const isPaid = payment?.status === PaymentStatus.PAID;
+      if (isPaid) {
+        await tx.payment.update({
+          where: { id: payment.id },
+          data: {
+            status: PaymentStatus.REFUND_PENDING,
+          },
+        });
+
+        const refund = await tx.refund.create({
+          data: {
+            paymentId: payment.id,
+            amount: payment.amount,
+            reason: "DOCTOR_CANCELLED",
+            status: RefundStatus.PENDING,
+          },
+        });
+        refundId = refund.id;
+      }
+    }
+
+    return tx.appointment.findUniqueOrThrow({
+      where: { id: appointmentId },
+    });
+  });
+
+  if (isCancelling && refundId) {
+    await refundQueue.add(
+      "process-refund",
+      { refundId },
+      {
+        jobId: `refund-${refundId}`,
+        attempts: 5,
+        backoff: {
+          type: "exponential",
+          delay: 5000,
+        },
+      },
+    );
   }
-  return appointment;
+
+  return result;
 };
 
 const cancelUnpaidAppointmentsService = async () => {

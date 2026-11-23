@@ -26,6 +26,10 @@ enum AppointmentStatus {
 enum PaymentStatus {
   PAID
   UNPAID
+  FAILED
+  REFUND_PENDING
+  REFUNDED
+  REFUND_FAILED
 }
 
 enum BloodGroup {
@@ -47,5 +51,12 @@ enum MaritalStatus {
 enum videoCallingStatus {
   PENDING
   CREATED
+  FAILED
+}
+
+enum RefundStatus {
+  PENDING
+  PROCESSING
+  SUCCEEDED
   FAILED
 }

@@ -1,5 +1,7 @@
+import Stripe from "stripe";
 import { stripe } from "../config/stripe";
-
+import AppError from "../errorHelpers/appError";
+import statusCode from "http-status"
 interface IPaymentSession {
   appointmentId: string;
   paymentId : string;
@@ -12,7 +14,11 @@ export const createPaymentSession = async ({
   paymentId,
   appointmentFee,
   docotorName,
-}: IPaymentSession) => {
+}: IPaymentSession, idempotencyKey: string): Promise<Stripe.Checkout.Session> => {
+  if (!Number.isFinite(appointmentFee) || appointmentFee <= 0) {
+    throw new AppError(statusCode.BAD_REQUEST,"Invalid appointment fee");
+  }
+  const unitAmount = Math.round(appointmentFee * 100);
   const session = await stripe.checkout.sessions.create({
     payment_method_types: ["card"],
     mode: "payment",
@@ -37,13 +43,17 @@ export const createPaymentSession = async ({
           product_data: {
             name: `Appointment with ${docotorName}`,
           },
-          unit_amount: appointmentFee * 100,
+          unit_amount: unitAmount,
         },
 
         quantity: 1,
       },
     ],
-  });
+  },{idempotencyKey});
+
+  if (!session.url) {
+    throw new AppError(statusCode.INTERNAL_SERVER_ERROR,"Stripe Checkout Session URL was not generated");
+  }
 
   return session;
 };

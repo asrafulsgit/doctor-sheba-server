@@ -1,5 +1,10 @@
 import { Request, Response } from "express";
-import { PaymentStatus, Prisma } from "@prisma/client";
+import {
+  AppointmentStatus,
+  PaymentStatus,
+  Prisma,
+  RefundStatus,
+} from "@prisma/client";
 import { JwtPayload } from "jsonwebtoken";
 import { stripe } from "../../config/stripe";
 import { envVars } from "../../config";
@@ -9,153 +14,7 @@ import QueryBuilder from "../../utils/queryBuilder";
 import httpStatus from "http-status";
 import { GetPaymentsQuery } from "./payment.validation";
 import Stripe from "stripe";
-import { meetingQueue } from "../../utils/queues";
-
-const markPaymentAsPaidAndQueueMeeting = async (
-  appointmentId: string,
-  paymentId: string,
-  paymentGatewayData: Prisma.InputJsonValue,
-) => {
-  const paymentMatchesAppointment = await prisma.$transaction(async (tx) => {
-    const payment = await tx.payment.findUnique({
-      where: { id: paymentId },
-      select: { appointmentId: true },
-    });
-
-    if (!payment || payment.appointmentId !== appointmentId) {
-      return false;
-    }
-
-    await tx.appointment.update({
-      where: { id: appointmentId },
-      data: { paymentStatus: PaymentStatus.PAID },
-    });
-
-    await tx.payment.update({
-      where: { id: paymentId },
-      data: {
-        status: PaymentStatus.PAID,
-        paymentGatewayData,
-      },
-    });
-
-    return true;
-  });
-
-  if (!paymentMatchesAppointment) {
-    throw new Error(
-      `Stripe payment does not match appointment ${appointmentId}`,
-    );
-  }
-
-  const job = await meetingQueue.add(
-    "create-google-meet",
-    { appointmentId },
-    {
-      jobId: `google-meet-${appointmentId}`,
-      attempts: 5,
-      backoff: {
-        type: "exponential",
-        delay: 5000,
-      },
-    },
-  );
-
-  console.info("Queued meeting creation after successful payment", {
-    appointmentId,
-    jobId: job.id,
-  });
-};
-
-export const stripeWebhook = async (req: Request, res: Response) => {
-  const signature = req.headers["stripe-signature"];
-
-  if (!Buffer.isBuffer(req.body) || typeof signature !== "string") {
-    return res.status(400).send("Invalid Stripe webhook request");
-  }
-
-  let event: Stripe.Event;
-  try {
-    event = stripe.webhooks.constructEvent(
-      req.body,
-      signature,
-      envVars.STRIPE_WEBHOOK_SECRET,
-    );
-  } catch (error) {
-    console.error("Stripe webhook signature verification failed:", error);
-    return res.status(400).send("Invalid Stripe webhook signature");
-  }
-
-  switch (event.type) {
-    case "checkout.session.completed":
-    case "checkout.session.async_payment_succeeded": {
-      const session = event.data.object;
-      if (session.payment_status !== "paid") {
-        break;
-      }
-
-      const appointmentId = session.metadata?.appointmentId;
-      const paymentId = session.metadata?.paymentId;
-
-      if (!appointmentId || !paymentId) {
-        console.error("Missing appointment or payment metadata", session.id);
-        return res.status(400).send("Missing appointment or payment metadata");
-      }
-
-      await markPaymentAsPaidAndQueueMeeting(appointmentId, paymentId, {
-        currency: session.currency,
-        customer_details: session.customer_details
-          ? {
-              name: session.customer_details.name,
-              email: session.customer_details.email,
-              phone: session.customer_details.phone,
-              address: session.customer_details.address
-                ? {
-                    city: session.customer_details.address.city,
-                    country: session.customer_details.address.country,
-                    line1: session.customer_details.address.line1,
-                    line2: session.customer_details.address.line2,
-                    postal_code: session.customer_details.address.postal_code,
-                    state: session.customer_details.address.state,
-                  }
-                : null,
-            }
-          : null,
-        method: session.payment_method_types,
-      });
-
-      break;
-    }
-    case "payment_intent.succeeded": {
-      const paymentIntent = event.data.object;
-      const appointmentId = paymentIntent.metadata.appointmentId;
-      const paymentId = paymentIntent.metadata.paymentId;
-
-      if (!appointmentId || !paymentId) {
-        console.error(
-          "Missing appointment or payment metadata",
-          paymentIntent.id,
-        );
-        return res.status(400).send("Missing appointment or payment metadata");
-      }
-
-      await markPaymentAsPaidAndQueueMeeting(appointmentId, paymentId, {
-        paymentIntentId: paymentIntent.id,
-        currency: paymentIntent.currency,
-        method: paymentIntent.payment_method_types,
-      });
-
-      break;
-    }
-    case "payment_intent.payment_failed":
-    case "charge.refunded":
-      console.info(`Received Stripe event: ${event.type}`);
-      break;
-    default:
-      console.info(`Unhandled Stripe event type: ${event.type}`);
-  }
-  res.json({ received: true });
-};
+import { meetingQueue, refundQueue } from "../../utils/queues";
 
 const getPatientPaymentsService = async (
   user: JwtPayload,
@@ -545,6 +404,589 @@ const getAllPaymentsService = async (queryParams: GetPaymentsQuery) => {
       },
     },
   };
+};
+
+export const stripeWebhook = async (req: Request, res: Response) => {
+  const signature = req.headers["stripe-signature"];
+
+  if (!Buffer.isBuffer(req.body) || typeof signature !== "string") {
+    return res.status(400).send("Invalid Stripe webhook request");
+  }
+
+  let event: Stripe.Event;
+  try {
+    event = stripe.webhooks.constructEvent(
+      req.body,
+      signature,
+      envVars.STRIPE_WEBHOOK_SECRET,
+    );
+  } catch (error) {
+    console.error("Stripe webhook signature verification failed:", error);
+    return res.status(400).send("Invalid Stripe webhook signature");
+  }
+
+  try {
+    switch (event.type) {
+      case "checkout.session.completed":
+      case "checkout.session.async_payment_succeeded": {
+        const session = event.data.object;
+
+        if (session.payment_status !== "paid") {
+          break;
+        }
+
+        const paymentIntentId =
+          typeof session.payment_intent === "string"
+            ? session.payment_intent
+            : session.payment_intent?.id;
+
+        if (!paymentIntentId) {
+          console.error("Stripe PaymentIntent ID not found");
+          return res.status(400).send("Stripe PaymentIntent ID not found");
+        }
+
+        const appointmentId = session.metadata?.appointmentId;
+        const paymentId = session.metadata?.paymentId;
+
+        if (!paymentIntentId || !appointmentId || !paymentId) {
+          console.error("Missing payment information in Checkout Session", {
+            sessionId: session.id,
+            appointmentId,
+            paymentId,
+            paymentIntentId,
+          });
+
+          break;
+        }
+
+        await markPaymentAsPaidAndQueueMeeting(
+          appointmentId,
+          paymentId,
+          {
+            currency: session.currency,
+            customer_details: session.customer_details
+              ? {
+                  name: session.customer_details.name,
+                  email: session.customer_details.email,
+                  phone: session.customer_details.phone,
+                  address: session.customer_details.address
+                    ? {
+                        city: session.customer_details.address.city,
+                        country: session.customer_details.address.country,
+                        line1: session.customer_details.address.line1,
+                        line2: session.customer_details.address.line2,
+                        postal_code:
+                          session.customer_details.address.postal_code,
+                        state: session.customer_details.address.state,
+                      }
+                    : null,
+                }
+              : null,
+            method: session.payment_method_types,
+          },
+          paymentIntentId,
+        );
+
+        break;
+      }
+      case "checkout.session.async_payment_failed": {
+        const session = event.data.object;
+
+        const appointmentId = session.metadata?.appointmentId;
+        const paymentId = session.metadata?.paymentId;
+
+        if (!appointmentId || !paymentId) {
+          console.error("Missing metadata on failed Checkout Session", {
+            sessionId: session.id,
+          });
+          break;
+        }
+
+        await markCheckoutPaymentAsFailed(appointmentId, paymentId);
+
+        break;
+      }
+      case "checkout.session.expired": {
+        const session = event.data.object;
+
+        const appointmentId = session.metadata?.appointmentId;
+        const paymentId = session.metadata?.paymentId;
+
+        if (!appointmentId || !paymentId) {
+          console.error("Missing metadata on expired Checkout Session", {
+            sessionId: session.id,
+          });
+          break;
+        }
+
+        await markCheckoutSessionAsExpired(
+          appointmentId,
+          paymentId,
+          session.id,
+        );
+
+        break;
+      }
+      case "refund.created":
+      case "refund.updated":
+      case "refund.failed": {
+        const refund = event.data.object as Stripe.Refund;
+
+        await syncRefundStatus(refund);
+
+        break;
+      }
+      case "payment_intent.payment_failed": {
+        const paymentIntent = event.data.object;
+
+        console.info("Payment attempt failed:", paymentIntent.id);
+        break;
+      }
+      case "charge.refunded": {
+        console.info("Charge refunded:", event.data.object.id);
+        break;
+      }
+
+      default:
+        console.info(`Unhandled Stripe event type: ${event.type}`);
+    }
+    return res.status(200).json({ received: true });
+  } catch (error) {
+    console.error(`Stripe webhook processing failed (${event.type}):`, error);
+    return res.status(500).send("Webhook processing failed");
+  }
+};
+
+const markPaymentAsPaidAndQueueMeeting = async (
+  appointmentId: string,
+  paymentId: string,
+  paymentGatewayData: Prisma.InputJsonValue,
+  paymentIntentId: string,
+) => {
+  const result = await prisma.$transaction(
+    async (tx) => {
+      const payment = await tx.payment.findUnique({
+        where: { id: paymentId },
+        select: {
+          id: true,
+          appointmentId: true,
+          amount: true,
+          refunds: {
+            select: {
+              id: true,
+              status: true,
+            },
+          },
+        },
+      });
+
+      if (!payment || payment.appointmentId !== appointmentId) {
+        throw new Error(
+          `Stripe payment does not match appointment ${appointmentId}`,
+        );
+      }
+
+      const appointment = await tx.appointment.findUnique({
+        where: { id: appointmentId },
+        select: { status: true },
+      });
+
+      if (!appointment) {
+        throw new Error(`Appointment ${appointmentId} not found`);
+      }
+
+
+      if (appointment.status === AppointmentStatus.CANCELED) {
+        let refund = payment.refunds[0];
+
+        // Create a refund only once for this payment.
+        if (!refund) {
+          refund = await tx.refund.create({
+            data: {
+              paymentId: payment.id,
+              amount: payment.amount,
+              status: RefundStatus.PENDING,
+            },
+            select: {
+              id: true,
+              status: true,
+            },
+          });
+        }
+
+        const paymentStatus =
+          refund.status === RefundStatus.SUCCEEDED
+            ? PaymentStatus.REFUNDED
+            : refund.status === RefundStatus.FAILED
+              ? PaymentStatus.REFUND_FAILED
+              : PaymentStatus.REFUND_PENDING;
+
+        await tx.payment.update({
+          where: { id: paymentId },
+          data: {
+            status: paymentStatus,
+            paymentGatewayData,
+            stripePaymentIntentId: paymentIntentId,
+          },
+        });
+
+        await tx.appointment.update({
+          where: { id: appointmentId },
+          data: { paymentStatus },
+        });
+
+        return {
+          type: "REFUND" as const,
+          refundId: refund.id,
+          refundStatus: refund.status,
+        };
+      }
+
+      // Normal successful payment.
+      await tx.payment.update({
+        where: { id: paymentId },
+        data: {
+          status: PaymentStatus.PAID,
+          paymentGatewayData,
+          stripePaymentIntentId: paymentIntentId,
+        },
+      });
+
+      await tx.appointment.update({
+        where: { id: appointmentId },
+        data: { paymentStatus: PaymentStatus.PAID },
+      });
+
+      return {
+        type: "MEETING" as const,
+        appointmentStatus: appointment.status,
+      };
+    }
+  );
+
+  if (result.type === "REFUND") {
+    if (
+      result.refundStatus === RefundStatus.PENDING ||
+      result.refundStatus === RefundStatus.PROCESSING
+    ) {
+      const job = await refundQueue.add(
+        "process-refund",
+        { refundId: result.refundId },
+        {
+          jobId: `refund-${result.refundId}`,
+          attempts: 5,
+          backoff: {
+            type: "exponential",
+            delay: 5000,
+          },
+        },
+      );
+
+      console.info("Queued refund for canceled appointment", {
+        appointmentId,
+        paymentId,
+        refundId: result.refundId,
+        jobId: job.id,
+      });
+    } else {
+      console.info("Refund already finalized; no new job queued", {
+        appointmentId,
+        refundId: result.refundId,
+        refundStatus: result.refundStatus,
+      });
+    }
+
+    return;
+  }
+
+
+  if (result.appointmentStatus !== AppointmentStatus.SCHEDULED) {
+    return;
+  }
+
+  const job = await meetingQueue.add(
+    "create-google-meet",
+    { appointmentId },
+    {
+      jobId: `google-meet-${appointmentId}`,
+      attempts: 5,
+      backoff: {
+        type: "exponential",
+        delay: 5000,
+      },
+    },
+  );
+
+  console.info("Queued meeting creation after successful payment", {
+    appointmentId,
+    jobId: job.id,
+  });
+};
+
+
+const syncRefundStatus = async (stripeRefund: Stripe.Refund) => {
+  const internalRefundId = stripeRefund.metadata?.refundId;
+
+  const refund = await prisma.refund.findFirst({
+    where: {
+      OR: [
+        { stripeRefundId: stripeRefund.id },
+        ...(internalRefundId ? [{ id: internalRefundId }] : []),
+      ],
+    },
+    include: {
+      payment: {
+        select: {
+          id: true,
+          appointmentId: true,
+        },
+      },
+    },
+  });
+
+  if (!refund) {
+    throw new Error(
+      `Refund record not found for Stripe refund: ${stripeRefund.id}`,
+    );
+  }
+
+  let refundStatus: RefundStatus;
+  let paymentStatus: PaymentStatus;
+
+  switch (stripeRefund.status) {
+    case "succeeded":
+      refundStatus = RefundStatus.SUCCEEDED;
+      paymentStatus = PaymentStatus.REFUNDED;
+      break;
+
+    case "failed":
+    case "canceled":
+      refundStatus = RefundStatus.FAILED;
+      paymentStatus = PaymentStatus.REFUND_FAILED;
+      break;
+
+    case "pending":
+    case "requires_action":
+    default:
+      refundStatus = RefundStatus.PROCESSING;
+      paymentStatus = PaymentStatus.REFUND_PENDING;
+      break;
+  }
+
+  const failureReason =
+    stripeRefund.failure_reason ??
+    (stripeRefund.status === "canceled" ? "Refund canceled by Stripe" : null);
+
+  return prisma.$transaction(async (tx) => {
+    const updatedRefund = await tx.refund.update({
+      where: { id: refund.id },
+      data: {
+        stripeRefundId: stripeRefund.id,
+        status: refundStatus,
+        failureReason
+      },
+    });
+
+    await tx.payment.update({
+      where: { id: refund.paymentId },
+      data: {
+        status: paymentStatus,
+      },
+    });
+
+    await tx.appointment.update({
+      where: { id: refund.payment.appointmentId },
+      data: {
+        paymentStatus,
+      },
+    });
+
+    return updatedRefund;
+  });
+};
+
+const markCheckoutPaymentAsFailed = async (
+  appointmentId: string,
+  paymentId: string,
+) => {
+  return prisma.$transaction(async (tx) => {
+    const payment = await tx.payment.findUnique({
+      where: { id: paymentId },
+    });
+
+    if (!payment) {
+      throw new Error(`Payment not found: ${paymentId}`);
+    }
+
+    if (payment.appointmentId !== appointmentId) {
+      throw new Error("Payment does not belong to this appointment");
+    }
+
+    if (payment.status !== PaymentStatus.UNPAID) {
+      return payment;
+    }
+
+    const updatedPayment = await tx.payment.update({
+      where: { id: paymentId },
+      data: {
+        status: PaymentStatus.FAILED,
+      },
+    });
+
+    await tx.appointment.update({
+      where: { id: appointmentId },
+      data: {
+        paymentStatus: PaymentStatus.FAILED,
+      },
+    });
+
+    return updatedPayment;
+  });
+};
+
+const markCheckoutSessionAsExpired = async (
+  appointmentId: string,
+  paymentId: string,
+  stripeSessionId: string,
+) => {
+  return prisma.$transaction(async (tx) => {
+    const payment = await tx.payment.findUnique({
+      where: {
+        id: paymentId,
+      },
+      select: {
+        id: true,
+        appointmentId: true,
+        status: true,
+        stripeCheckoutSessionId: true,
+      },
+    });
+
+    if (!payment) {
+      throw new Error(`Payment not found: ${paymentId}`);
+    }
+
+    if (payment.appointmentId !== appointmentId) {
+      throw new Error("Payment does not belong to this appointment");
+    }
+
+    if (payment.stripeCheckoutSessionId !== stripeSessionId) {
+      console.warn("Checkout Session ID mismatch", {
+        paymentId,
+        expected: payment.stripeCheckoutSessionId,
+        received: stripeSessionId,
+      });
+
+      return { expired: false, reason: "SESSION_MISMATCH" };
+    }
+
+    if (payment.status !== PaymentStatus.UNPAID) {
+      return {
+        expired: false,
+        reason: "PAYMENT_ALREADY_PROCESSED",
+      };
+    }
+
+    const appointment = await tx.appointment.findUnique({
+      where: {
+        id: appointmentId,
+      },
+      select: {
+        id: true,
+        status: true,
+        paymentStatus: true,
+        doctorId: true,
+        scheduleId: true,
+      },
+    });
+
+    if (!appointment) {
+      throw new Error(`Appointment not found: ${appointmentId}`);
+    }
+
+    // Conditionally transition the payment.
+    const paymentUpdate = await tx.payment.updateMany({
+      where: {
+        id: paymentId,
+        appointmentId,
+        status: PaymentStatus.UNPAID,
+        stripeCheckoutSessionId: stripeSessionId,
+      },
+      data: {
+        status: PaymentStatus.FAILED,
+      },
+    });
+
+    if (paymentUpdate.count === 0) {
+      return {
+        expired: false,
+        reason: "PAYMENT_ALREADY_PROCESSED",
+      };
+    }
+
+    const anotherSuccessfulPayment = await tx.payment.findFirst({
+      where: {
+        appointmentId,
+        id: {
+          not: paymentId,
+        },
+        status: {
+          in: [
+            PaymentStatus.PAID,
+            PaymentStatus.REFUND_PENDING,
+            PaymentStatus.REFUNDED,
+          ],
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (anotherSuccessfulPayment) {
+      return {
+        expired: true,
+        appointmentCancelled: false,
+        reason: "ANOTHER_PAYMENT_EXISTS",
+      };
+    }
+
+    const appointmentUpdate = await tx.appointment.updateMany({
+      where: {
+        id: appointmentId,
+        status: AppointmentStatus.SCHEDULED,
+        paymentStatus: PaymentStatus.UNPAID,
+      },
+      data: {
+        status: AppointmentStatus.CANCELED,
+        paymentStatus: PaymentStatus.FAILED,
+      },
+    });
+
+    if (appointmentUpdate.count === 0) {
+      return {
+        expired: true,
+        appointmentCancelled: false,
+        reason: "APPOINTMENT_ALREADY_PROCESSED",
+      };
+    }
+
+    await tx.doctorSchedules.updateMany({
+      where: {
+        doctorId: appointment.doctorId,
+        scheduleId: appointment.scheduleId,
+        isBooked: true,
+      },
+      data: {
+        isBooked: false,
+      },
+    });
+
+    return {
+      expired: true,
+      appointmentCancelled: true,
+    };
+  });
 };
 
 export const paymentServices = {
