@@ -4,6 +4,7 @@ import {
   PaymentStatus,
   Prisma,
   RefundStatus,
+  UserRole,
 } from "@prisma/client";
 import { JwtPayload } from "jsonwebtoken";
 import { stripe } from "../../config/stripe";
@@ -12,7 +13,7 @@ import AppError from "../../errorHelpers/appError";
 import { prisma } from "../../shared/prisma";
 import QueryBuilder from "../../utils/queryBuilder";
 import httpStatus from "http-status";
-import { GetPaymentsQuery } from "./payment.validation";
+import { GetPaymentsQuery, GetRefundsQuery } from "./payment.validation";
 import Stripe from "stripe";
 import { meetingQueue, refundQueue } from "../../utils/queues";
 
@@ -82,7 +83,7 @@ const getPatientPaymentsService = async (
       paid: paidAmount,
       due: dueAmount,
       transactions: payments.length,
-      payments
+      payments,
     },
     meta: {
       total,
@@ -403,6 +404,115 @@ const getAllPaymentsService = async (queryParams: GetPaymentsQuery) => {
   };
 };
 
+const getRefundsService = async (user: JwtPayload, query: GetRefundsQuery) => {
+  const isPatient = user.role === UserRole.PATIENT;
+  const isDoctor = user.role === UserRole.DOCTOR;
+
+  let ownerId: string | undefined;
+
+  if (isPatient) {
+    const patient = await prisma.patient.findUnique({
+      where: { email: user.email },
+      select: { id: true },
+    });
+
+    if (!patient) {
+      throw new AppError(httpStatus.NOT_FOUND, "Patient not found");
+    }
+
+    ownerId = patient.id;
+  }
+
+  if (isDoctor) {
+    const doctor = await prisma.doctor.findUnique({
+      where: { email: user.email },
+      select: { id: true },
+    });
+
+    if (!doctor) {
+      throw new AppError(httpStatus.NOT_FOUND, "Doctor not found");
+    }
+
+    ownerId = doctor.id;
+  }
+
+  const { where: queryWhere, options } = new QueryBuilder(query)
+    .search(["payment.transactionId"])
+    .filter()
+    .sort()
+    .pagination()
+    .build();
+
+  const where: Prisma.RefundWhereInput = {
+    ...queryWhere,
+
+    ...(isPatient && {
+      payment: {
+        appointment: {
+          patientId: ownerId,
+        },
+      },
+    }),
+
+    ...(isDoctor && {
+      payment: {
+        appointment: {
+          doctorId: ownerId,
+        },
+      },
+    }),
+  };
+
+  const [refunds, total] = await prisma.$transaction([
+    prisma.refund.findMany({
+      where,
+      ...options,
+      include: {
+        payment: {
+          include: {
+            appointment: {
+              select: {
+                id: true,
+                status: true,
+                patient: {
+                  select: {
+                    id: true,
+                    email: true,
+                  },
+                },
+                doctor: {
+                  select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    profilePhoto: true,
+                    designation: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    }),
+
+    prisma.refund.count({ where }),
+  ]);
+
+  const limit = Number(query.limit) || 10;
+  const page = Number(query.page) || 1;
+
+  return {
+    data: refunds,
+    meta: {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
+};
+
 export const stripeWebhook = async (req: Request, res: Response) => {
   const signature = req.headers["stripe-signature"];
 
@@ -560,90 +670,66 @@ const markPaymentAsPaidAndQueueMeeting = async (
   paymentGatewayData: Prisma.InputJsonValue,
   paymentIntentId: string,
 ) => {
-  const result = await prisma.$transaction(
-    async (tx) => {
-      const payment = await tx.payment.findUnique({
-        where: { id: paymentId },
-        select: {
-          id: true,
-          appointmentId: true,
-          amount: true,
-          refunds: {
-            select: {
-              id: true,
-              status: true,
-            },
+  const result = await prisma.$transaction(async (tx) => {
+    const payment = await tx.payment.findUnique({
+      where: { id: paymentId },
+      select: {
+        id: true,
+        appointmentId: true,
+        amount: true,
+        refunds: {
+          select: {
+            id: true,
+            status: true,
           },
         },
-      });
+      },
+    });
 
-      if (!payment || payment.appointmentId !== appointmentId) {
-        throw new Error(
-          `Stripe payment does not match appointment ${appointmentId}`,
-        );
-      }
+    if (!payment || payment.appointmentId !== appointmentId) {
+      throw new Error(
+        `Stripe payment does not match appointment ${appointmentId}`,
+      );
+    }
 
-      const appointment = await tx.appointment.findUnique({
-        where: { id: appointmentId },
-        select: { status: true },
-      });
+    const appointment = await tx.appointment.findUnique({
+      where: { id: appointmentId },
+      select: { status: true },
+    });
 
-      if (!appointment) {
-        throw new Error(`Appointment ${appointmentId} not found`);
-      }
+    if (!appointment) {
+      throw new Error(`Appointment ${appointmentId} not found`);
+    }
 
+    if (appointment.status === AppointmentStatus.CANCELED) {
+      let refund = payment.refunds[0];
 
-      if (appointment.status === AppointmentStatus.CANCELED) {
-        let refund = payment.refunds[0];
-
-        // Create a refund only once for this payment.
-        if (!refund) {
-          refund = await tx.refund.create({
-            data: {
-              paymentId: payment.id,
-              amount: payment.amount,
-              status: RefundStatus.PENDING,
-            },
-            select: {
-              id: true,
-              status: true,
-            },
-          });
-        }
-
-        const paymentStatus =
-          refund.status === RefundStatus.SUCCEEDED
-            ? PaymentStatus.REFUNDED
-            : refund.status === RefundStatus.FAILED
-              ? PaymentStatus.REFUND_FAILED
-              : PaymentStatus.REFUND_PENDING;
-
-        await tx.payment.update({
-          where: { id: paymentId },
+      // Create a refund only once for this payment.
+      if (!refund) {
+        refund = await tx.refund.create({
           data: {
-            status: paymentStatus,
-            paymentGatewayData,
-            stripePaymentIntentId: paymentIntentId,
+            paymentId: payment.id,
+            amount: payment.amount,
+            status: RefundStatus.PENDING,
+          },
+          select: {
+            id: true,
+            status: true,
           },
         });
-
-        await tx.appointment.update({
-          where: { id: appointmentId },
-          data: { paymentStatus },
-        });
-
-        return {
-          type: "REFUND" as const,
-          refundId: refund.id,
-          refundStatus: refund.status,
-        };
       }
 
-      // Normal successful payment.
+      const paymentStatus =
+        refund.status === RefundStatus.SUCCEEDED
+          ? PaymentStatus.REFUNDED
+          : refund.status === RefundStatus.FAILED
+            ? PaymentStatus.REFUND_FAILED
+            : PaymentStatus.REFUND_PENDING;
+
       await tx.payment.update({
         where: { id: paymentId },
         data: {
-          status: PaymentStatus.PAID,
+          status: paymentStatus,
           paymentGatewayData,
           stripePaymentIntentId: paymentIntentId,
         },
@@ -651,15 +737,36 @@ const markPaymentAsPaidAndQueueMeeting = async (
 
       await tx.appointment.update({
         where: { id: appointmentId },
-        data: { paymentStatus: PaymentStatus.PAID },
+        data: { paymentStatus },
       });
 
       return {
-        type: "MEETING" as const,
-        appointmentStatus: appointment.status,
+        type: "REFUND" as const,
+        refundId: refund.id,
+        refundStatus: refund.status,
       };
     }
-  );
+
+    // Normal successful payment.
+    await tx.payment.update({
+      where: { id: paymentId },
+      data: {
+        status: PaymentStatus.PAID,
+        paymentGatewayData,
+        stripePaymentIntentId: paymentIntentId,
+      },
+    });
+
+    await tx.appointment.update({
+      where: { id: appointmentId },
+      data: { paymentStatus: PaymentStatus.PAID },
+    });
+
+    return {
+      type: "MEETING" as const,
+      appointmentStatus: appointment.status,
+    };
+  });
 
   if (result.type === "REFUND") {
     if (
@@ -696,7 +803,6 @@ const markPaymentAsPaidAndQueueMeeting = async (
     return;
   }
 
-
   if (result.appointmentStatus !== AppointmentStatus.SCHEDULED) {
     return;
   }
@@ -719,7 +825,6 @@ const markPaymentAsPaidAndQueueMeeting = async (
     jobId: job.id,
   });
 };
-
 
 const syncRefundStatus = async (stripeRefund: Stripe.Refund) => {
   const internalRefundId = stripeRefund.metadata?.refundId;
@@ -780,7 +885,7 @@ const syncRefundStatus = async (stripeRefund: Stripe.Refund) => {
       data: {
         stripeRefundId: stripeRefund.id,
         status: refundStatus,
-        failureReason
+        failureReason,
       },
     });
 
@@ -990,4 +1095,5 @@ export const paymentServices = {
   getPatientPaymentsService,
   getDoctorEarningsService,
   getAllPaymentsService,
+  getRefundsService
 };

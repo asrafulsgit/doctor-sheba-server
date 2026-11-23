@@ -17,21 +17,7 @@ export const refundQueue = new Queue<RefundJobData>(
       backoff: {
         type: "exponential",
         delay: 5000,
-      },
-      removeOnComplete: {
-        count: 100,
-      },
-      removeOnFail: false,
+      }
     },
   },
 );
-
-export const enqueueRefund = async (refundId: string) => {
-  return refundQueue.add(
-    "process-refund",
-    { refundId },
-    {
-      jobId: `refund-${refundId}`,
-    },
-  );
-};

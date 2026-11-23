@@ -7,14 +7,13 @@ import { paymentValidators } from "./payment.validation";
 
 const router = Router();
 
-// patient 
+// patient
 router.get(
   "/my-payments",
   authentication(UserRole.PATIENT),
   validateRequest(paymentValidators.getPaymentsValidation),
   paymentControllers.getPatientPaymentsController,
 );
-
 
 router.get(
   "/all",
@@ -23,12 +22,24 @@ router.get(
   paymentControllers.getAllPaymentsController,
 );
 
-// doctor 
+// doctor
 router.get(
   "/my-earnings",
   authentication(UserRole.DOCTOR),
   validateRequest(paymentValidators.getPaymentsValidation),
   paymentControllers.getDoctorEarningsController,
+);
+
+router.get(
+  "/refunds",
+  authentication(
+    UserRole.PATIENT,
+    UserRole.DOCTOR,
+    UserRole.ADMIN,
+    UserRole.SUPER_ADMIN,
+  ),
+  validateRequest(paymentValidators.getRefundsValidation),
+  paymentControllers.getRefundsController,
 );
 
 export const paymentRouter = router;

@@ -54,8 +54,22 @@ const getDoctorEarningsController = catchAsync(
   },
 );
 
+const getRefundsController = catchAsync(async (req, res) => {
+  const user = req.user as JwtPayload;
+  const result = await paymentServices.getRefundsService(user, req.query);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Refunds retrieved successfully",
+    data: result.data,
+    meta : result.meta
+  });
+});
+
 export const paymentControllers = {
   getPatientPaymentsController,
   getDoctorEarningsController,
   getAllPaymentsController,
+  getRefundsController
 };
