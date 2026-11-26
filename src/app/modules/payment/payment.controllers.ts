@@ -67,9 +67,33 @@ const getRefundsController = catchAsync(async (req, res) => {
   });
 });
 
+const getPaymentInvoiceController = catchAsync(async (req, res) => {
+  const user = req.user as JwtPayload;
+  const paymentId = req.params.paymentId as string;
+   const pdfBuffer =
+      await paymentServices.getPaymentInvoiceService(
+        user,
+        paymentId,
+      );
+
+    res.setHeader("Content-Type", "application/pdf");
+
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="invoice-${paymentId}.pdf"`,
+    );
+
+    res.setHeader("Content-Length", pdfBuffer.length);
+
+    return res.status(httpStatus.OK).send(pdfBuffer);
+});
+
+
+
 export const paymentControllers = {
   getPatientPaymentsController,
   getDoctorEarningsController,
   getAllPaymentsController,
-  getRefundsController
+  getRefundsController,
+  getPaymentInvoiceController
 };

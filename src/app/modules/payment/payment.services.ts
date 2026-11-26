@@ -16,6 +16,9 @@ import httpStatus from "http-status";
 import { GetPaymentsQuery, GetRefundsQuery } from "./payment.validation";
 import Stripe from "stripe";
 import { meetingQueue, refundQueue } from "../../utils/queues";
+import { generateInvoicePDF } from "./invoice/invoice.template";
+import { format } from "date-fns/format";
+import { formatReference } from "../../utils/formatReference";
 
 const getPatientPaymentsService = async (
   user: JwtPayload,
@@ -402,6 +405,77 @@ const getAllPaymentsService = async (queryParams: GetPaymentsQuery) => {
       },
     },
   };
+};
+
+const getPaymentInvoiceService = async (user: JwtPayload, id: string) => {
+  const payment = await prisma.payment.findUniqueOrThrow({
+    where: { id },
+    include: {
+      appointment: {
+        select: {
+          id: true,
+          status: true,
+          doctor: {
+            include: {
+              doctorSpecialities: {
+                select: {
+                  specialities: true,
+                },
+              },
+            },
+          },
+          patient: true,
+          schedule: true,
+        },
+      },
+    },
+  });
+
+  const { appointment } = payment;
+  if (
+    user.role === UserRole.PATIENT &&
+    user.email !== appointment.patient.email
+  ) {
+    throw new AppError(httpStatus.BAD_REQUEST, "This is not your payment");
+  }
+
+  const pdfBuffer = await generateInvoicePDF({
+    patient: {
+      id: appointment.patient.id,
+      name: appointment.patient.name,
+      phone: appointment.patient.contactNumber ?? "",
+      email: appointment.patient.email,
+    },
+
+    doctor: {
+      name: appointment.doctor.name,
+      specialty: appointment.doctor.doctorSpecialities
+        ?.map((item) => item.specialities.title)
+        .join(", "),
+      bmdcRegNo: appointment.doctor.registrationNumber,
+      qualification: appointment.doctor.qualification,
+      designation: appointment.doctor.designation,
+      fee: Number(payment.amount),
+    },
+
+    appointment: {
+      id: formatReference(appointment.id),
+      date: format(appointment.schedule.startDateTime, "dd MMM yyyy"),
+      time: `${format(appointment.schedule.startDateTime, "hh:mm a")}-${format(appointment.schedule.endDateTime, "hh:mm a")}`,
+      type: appointment.status,
+    },
+
+    payment: {
+      transactionId: formatReference(payment.transactionId) ?? "",
+      method:
+        (payment?.paymentGatewayData as { method?: string[] } | null)
+          ?.method?.[0] ?? "",
+      date: payment.updatedAt ? format(payment.updatedAt, "dd MMM yyyy") : "",
+      status: payment.status,
+    },
+  });
+
+  return pdfBuffer;
 };
 
 const getRefundsService = async (user: JwtPayload, query: GetRefundsQuery) => {
@@ -1095,5 +1169,6 @@ export const paymentServices = {
   getPatientPaymentsService,
   getDoctorEarningsService,
   getAllPaymentsService,
-  getRefundsService
+  getRefundsService,
+  getPaymentInvoiceService,
 };

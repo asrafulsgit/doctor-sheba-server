@@ -450,7 +450,7 @@ const updateAppointmentStatusService = async (
           data: {
             paymentId: payment.id,
             amount: payment.amount,
-            reason: "DOCTOR_CANCELLED",
+            reason: "Doctor cancelled",
             status: RefundStatus.PENDING,
           },
         });

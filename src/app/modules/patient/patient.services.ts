@@ -143,7 +143,6 @@ const updatePatientService = async (
   file?: Express.Multer.File,
 ) => {
   const { patientHealthData, medicalReport, ...patientData } = payload;
-
   const patientInfo = await getPatientByUserEmail(user);
   const previousPhoto = patientInfo.profilePhoto;
   if (patientInfo.isDeleted) {

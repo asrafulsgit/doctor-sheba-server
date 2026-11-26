@@ -26,6 +26,12 @@ const getRefundsValidation = z.object({
     sortOrder: z.enum(["asc", "desc"]).optional(),
   }),
 });
+
+const invoiceValidation = z.object({
+  params: z.object({
+    paymentId: z.string().trim().uuid("Invalid medical report ID."),
+  }),
+});
  
 
 export type GetPaymentsQuery = z.infer<
@@ -37,5 +43,6 @@ export type GetRefundsQuery = z.infer<
 
 export const paymentValidators = {
    getPaymentsValidation,
-   getRefundsValidation
+   getRefundsValidation,
+   invoiceValidation
 };

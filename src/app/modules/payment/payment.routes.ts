@@ -15,6 +15,7 @@ router.get(
   paymentControllers.getPatientPaymentsController,
 );
 
+// admin
 router.get(
   "/all",
   authentication(UserRole.ADMIN, UserRole.SUPER_ADMIN),
@@ -34,12 +35,23 @@ router.get(
   "/refunds",
   authentication(
     UserRole.PATIENT,
-    UserRole.DOCTOR,
     UserRole.ADMIN,
     UserRole.SUPER_ADMIN,
   ),
   validateRequest(paymentValidators.getRefundsValidation),
   paymentControllers.getRefundsController,
 );
+
+router.get(
+  "/:paymentId/invoice",
+  authentication(
+    UserRole.PATIENT,
+    UserRole.ADMIN,
+    UserRole.SUPER_ADMIN,
+  ),
+  validateRequest(paymentValidators.invoiceValidation),
+  paymentControllers.getPaymentInvoiceController,
+);
+
 
 export const paymentRouter = router;
