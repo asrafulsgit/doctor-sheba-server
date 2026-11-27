@@ -9,6 +9,7 @@ import "./app/utils/cronJob";
 import "./app/workers/googleMeet.workers";
 import "./app/workers/refund.workers";
 // import "./app/modules/payment/invoice/test";
+// import "./app/modules/prescription/test";
 import { stripeWebhook } from "./app/modules/payment/payment.services";
 import rateLimitConfig from "./app/config/rateLimt";
 import { createRateLimitMiddleware } from "./app/middlewares/rateLimiter";

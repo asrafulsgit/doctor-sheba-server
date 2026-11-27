@@ -159,7 +159,7 @@ export async function generateInvoicePDF({
   colors: colorOverrides,
   fontDir = path.join(
     typeof __dirname !== "undefined" ? __dirname : process.cwd(),
-    "fonts",
+    "../../../fonts",
   ),
 }: PDFGeneratorProps): Promise<Buffer> {
   let logoBuffer: Buffer | undefined;

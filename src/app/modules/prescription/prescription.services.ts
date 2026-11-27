@@ -9,6 +9,7 @@ import {
   CreatePrescriptionInput,
   UpdatePrescriptionInput,
 } from "./prescription.validation";
+import { generatePrescriptionPDF } from "./prescription.template";
 
 const createPrescriptionService = async (
   email: string,
@@ -252,10 +253,59 @@ const getPrescriptionsService = async (query: Record<string, any>) => {
   };
 };
 
+const getPrescriptionPdfService = async (user: JwtPayload, id: string) => {
+  const prescription = await prisma.prescription.findUniqueOrThrow({
+    where: { id },
+    include: {
+      doctor: true,
+      patient: true,
+      medications: true,
+    },
+  });
+
+  const { doctor, patient } = prescription;
+
+  if (user.role === UserRole.PATIENT && user.email !== patient.email) {
+    throw new AppError(httpStatus.BAD_REQUEST, "This is not your payment");
+  }
+
+  if (user.role === UserRole.DOCTOR && user.email !== doctor.email) {
+    throw new AppError(httpStatus.BAD_REQUEST, "This is not your payment");
+  }
+
+  const pdfBuffer = await generatePrescriptionPDF({
+    patient: {
+      id: patient.id,
+      name: patient.name,
+      phone: patient.contactNumber ?? "",
+      email: patient.email,
+    },
+
+    doctor: {
+      name: doctor.name,
+      bmdcRegNo: doctor.registrationNumber,
+      qualification: doctor.qualification,
+      designation: doctor.designation,
+    },
+
+    prescription: {
+      id: prescription.id,
+      medications: prescription.medications,
+      diagnosis: prescription.diagnosis,
+      instructions: prescription.instructions,
+      followUpDate: prescription.followUpDate ?? undefined,
+      createdAt: prescription.createdAt,
+    },
+  });
+
+  return pdfBuffer;
+};
+
 export const prescriptionServices = {
   createPrescriptionService,
   updatePrescriptionService,
   getMyPrescriptionsService,
   getPrescriptionsService,
   getPrescriptionService,
+  getPrescriptionPdfService
 };

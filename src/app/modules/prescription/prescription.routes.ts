@@ -22,6 +22,18 @@ router.get(
 ); 
 
 router.get(
+  "/:id/pdf",
+  authentication(
+    UserRole.PATIENT,
+    UserRole.DOCTOR,
+    UserRole.ADMIN,
+    UserRole.SUPER_ADMIN,
+  ),
+  validateRequest(prescriptionValidators.paramValidation),
+  prescriptionControllers.getPrescriptionPdfController,
+);
+
+router.get(
   "/:id",
   validateRequest(prescriptionValidators.paramValidation),
   authentication(UserRole.DOCTOR,UserRole.PATIENT),

@@ -89,10 +89,32 @@ const getPrescriptionController = catchAsync(
   },
 );
 
+const getPrescriptionPdfController = catchAsync(async (req, res) => {
+  const user = req.user as JwtPayload;
+  const prescriptionId = req.params.id as string;
+   const pdfBuffer =
+      await prescriptionServices.getPrescriptionPdfService(
+        user,
+        prescriptionId,
+      );
+
+    res.setHeader("Content-Type", "application/pdf");
+
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="invoice-${prescriptionId}.pdf"`,
+    );
+
+    res.setHeader("Content-Length", pdfBuffer.length);
+
+    return res.status(httpStatus.OK).send(pdfBuffer);
+});
+
 export const prescriptionControllers = {
   createPrescriptionController,
   updatePrescriptionController,
   myPrescriptionsController,
   getPrescriptionsController,
-  getPrescriptionController
+  getPrescriptionController,
+  getPrescriptionPdfController
 };
