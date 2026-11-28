@@ -50,7 +50,7 @@ const getSignleAppointmentController = catchAsync(
       statusCode: httpStatus.OK,
       success: true,
       message: "Appointment retrieved successfully",
-      data: appointment
+      data: appointment,
     });
   },
 );
@@ -66,6 +66,21 @@ const getAppointmentsController = catchAsync(
       message: "Appointments retrieved successfully",
       data: appointments.data,
       meta: appointments.meta,
+    });
+  },
+);
+
+const joinAppointmentController = catchAsync(
+  async (req: Request, res: Response) => {
+    const user = req.user as JwtPayload;
+    const id = req.params.appointmentId as string;
+    const result = await appointmentServices.joinAppointmentService(user, id);
+
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: "Successfully joined the appointment",
+      data: result,
     });
   },
 );
@@ -89,12 +104,11 @@ const updateAppointmentStatusController = catchAsync(
   },
 );
 
- 
-
 export const appointmentControllers = {
   createAppointmentController,
   myAppointmentsController,
   getSignleAppointmentController,
   getAppointmentsController,
+  joinAppointmentController,
   updateAppointmentStatusController,
 };

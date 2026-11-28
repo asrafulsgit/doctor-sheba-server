@@ -7,11 +7,13 @@ import { v4 as uuidv4 } from "uuid";
 import QueryBuilder from "../../utils/queryBuilder";
 import {
   AppointmentStatus,
+  AttendanceStatus,
   PaymentStatus,
   RefundStatus,
   UserRole,
 } from "@prisma/client";
 import { refundQueue } from "../../utils/queues";
+import { format } from "date-fns";
 
 const createAppointmentService = async (
   user: JwtPayload,
@@ -341,6 +343,112 @@ const getAppointmentsService = async (query: Record<string, any>) => {
     },
   };
 };
+const joinAppointmentService = async (
+  user: JwtPayload,
+  appointmentId: string,
+) => {
+  const appointment = await prisma.appointment.findUnique({
+    where: { id: appointmentId },
+    include: {
+      schedule: true,
+      patient: true,
+      doctor: true,
+    },
+  });
+
+  if (!appointment) {
+    throw new AppError(httpStatus.NOT_FOUND, "Appointment not found");
+  }
+
+  const isDoctor = user.role === UserRole.DOCTOR;
+
+  const isOwner = isDoctor
+    ? appointment.doctor.email === user.email
+    : appointment.patient.email === user.email;
+
+  if (!isOwner) {
+    throw new AppError(httpStatus.BAD_REQUEST, "This is not your appointment");
+  }
+
+  if (appointment.paymentStatus !== PaymentStatus.PAID) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      `Payment status: ${appointment.paymentStatus}`,
+    );
+  }
+
+  if (appointment.status !== AppointmentStatus.SCHEDULED) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      `Appointment status: ${appointment.status}`,
+    );
+  }
+
+  const now = new Date();
+  const startTime = appointment.schedule.startDateTime;
+
+  const deadline = new Date(startTime.getTime() + 15 * 60 * 1000);
+
+  const formattedStartTime = format(startTime, "dd MMM yyyy, hh:mm a");
+
+  const formattedDeadline = format(deadline, "dd MMM yyyy, hh:mm a");
+
+  if (now < startTime) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      `The appointment joining window will start at ${formattedStartTime}. Please try again at the scheduled time.`,
+    );
+  }
+
+  if (now >= deadline) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      `The appointment joining window expired at ${formattedDeadline}.`,
+    );
+  }
+
+  const result = await prisma.appointment.updateMany({
+    where: {
+      id: appointmentId,
+      status: AppointmentStatus.SCHEDULED,
+      paymentStatus: PaymentStatus.PAID,
+      ...(isDoctor ? { doctorJoinedAt: null } : { patientJoinedAt: null }),
+    },
+    data: isDoctor ? { doctorJoinedAt: now } : { patientJoinedAt: now },
+  });
+
+  if (result.count === 0) {
+    const latestAppointment = await prisma.appointment.findUnique({
+      where: { id: appointmentId },
+      select: {
+        status: true,
+        paymentStatus: true,
+        doctorJoinedAt: true,
+        patientJoinedAt: true,
+      },
+    });
+
+    const alreadyJoined = isDoctor
+      ? latestAppointment?.doctorJoinedAt
+      : latestAppointment?.patientJoinedAt;
+
+    if (
+      !alreadyJoined ||
+      latestAppointment?.status !== AppointmentStatus.SCHEDULED ||
+      latestAppointment?.paymentStatus !== PaymentStatus.PAID
+    ) {
+      throw new AppError(
+        httpStatus.CONFLICT,
+        "Unable to join this appointment. Please try again.",
+      );
+    }
+  }
+
+  return {
+    meetingLink: appointment.videoCallingLink,
+  };
+};
+
 const updateAppointmentStatusService = async (
   appointmentId: string,
   status: AppointmentStatus,
@@ -383,10 +491,14 @@ const updateAppointmentStatusService = async (
 
   if (isDoctor) {
     const allowedTransitions: Record<AppointmentStatus, AppointmentStatus[]> = {
-      [AppointmentStatus.SCHEDULED]: [AppointmentStatus.CANCELED,AppointmentStatus.INPROGRESS],
+      [AppointmentStatus.SCHEDULED]: [
+        AppointmentStatus.CANCELED,
+        AppointmentStatus.INPROGRESS,
+      ],
       [AppointmentStatus.INPROGRESS]: [AppointmentStatus.COMPLETED],
       [AppointmentStatus.COMPLETED]: [],
       [AppointmentStatus.CANCELED]: [],
+      [AppointmentStatus.MISSED]: [],
     };
 
     if (!allowedTransitions[currentStatus].includes(status)) {
@@ -534,11 +646,149 @@ const cancelUnpaidAppointmentsService = async () => {
   });
 };
 
+const checkExpiredAppointmentsAttendanceService = async () => {
+  const now = new Date();
+
+  const attendanceDeadline = new Date(now.getTime() - 15 * 60 * 1000);
+
+  const appointments = await prisma.appointment.findMany({
+    where: {
+      status: AppointmentStatus.SCHEDULED,
+      paymentStatus: PaymentStatus.PAID,
+      attendanceStatus: AttendanceStatus.NOT_STARTED,
+      schedule: {
+        is: {
+          startDateTime: {
+            lte: attendanceDeadline,
+          },
+        },
+      },
+    },
+    select: {
+      id: true,
+      doctorJoinedAt: true,
+      patientJoinedAt: true,
+    },
+  });
+
+  if (!appointments.length) return;
+
+  let processed = 0;
+  let refunded = 0;
+
+  for (const appointment of appointments) {
+    const doctorJoined = !!appointment.doctorJoinedAt;
+    const patientJoined = !!appointment.patientJoinedAt;
+
+    let attendanceStatus: AttendanceStatus;
+
+    if (doctorJoined && patientJoined) {
+      attendanceStatus = AttendanceStatus.BOTH_PRESENT;
+    } else if (!doctorJoined && patientJoined) {
+      attendanceStatus = AttendanceStatus.DOCTOR_ABSENT;
+    } else if (doctorJoined && !patientJoined) {
+      attendanceStatus = AttendanceStatus.PATIENT_ABSENT;
+    } else {
+      attendanceStatus = AttendanceStatus.BOTH_ABSENT;
+    }
+
+    let refundId: string | null = null;
+    const finalized = await prisma.$transaction(async (tx) => {
+      const updated = await tx.appointment.updateMany({
+        where: {
+          id: appointment.id,
+          status: AppointmentStatus.SCHEDULED,
+          paymentStatus: PaymentStatus.PAID,
+          attendanceStatus: AttendanceStatus.NOT_STARTED,
+        },
+        data: {
+          attendanceStatus,
+          ...(attendanceStatus !== AttendanceStatus.BOTH_PRESENT && {
+            status: AppointmentStatus.MISSED,
+          }),
+        },
+      });
+
+      if (updated.count === 0) return false;
+
+      if (attendanceStatus === AttendanceStatus.DOCTOR_ABSENT) {
+        const payment = await tx.payment.findFirst({
+          where: {
+            appointmentId: appointment.id,
+            status: PaymentStatus.PAID,
+          },
+        });
+
+        if (!payment) {
+          throw new AppError(
+            httpStatus.NOT_FOUND,
+            "Paid payment record not found",
+          );
+        }
+
+        await tx.payment.update({
+          where: { id: payment.id },
+          data: { status: PaymentStatus.REFUND_PENDING },
+        });
+
+        const refund = await tx.refund.create({
+          data: {
+            paymentId: payment.id,
+            amount: payment.amount,
+            reason: "Doctor absent",
+            status: RefundStatus.PENDING,
+          },
+        });
+
+        refundId = refund.id;
+      }
+
+      return true;
+    });
+
+    if (!finalized) continue;
+
+    processed++;
+
+    if (refundId) {
+      await refundQueue.add(
+        "process-refund",
+        { refundId },
+        {
+          jobId: `refund-${refundId}`,
+          attempts: 5,
+          backoff: {
+            type: "exponential",
+            delay: 5000,
+          },
+        },
+      );
+
+      refunded++;
+    }
+  }
+
+  console.log({
+    message: "Appointment attendance check completed",
+    totalFound: appointments.length,
+    totalProcessed: processed,
+    totalRefundsQueued: refunded,
+  });
+
+  return {
+    totalFound: appointments.length,
+    totalProcessed: processed,
+    totalRefundsQueued: refunded,
+  };
+};
+
 export const appointmentServices = {
   createAppointmentService,
   myAppointmentsService,
   getSingleAppointmentService,
   getAppointmentsService,
+  joinAppointmentService,
   updateAppointmentStatusService,
   cancelUnpaidAppointmentsService,
+  checkExpiredAppointmentsAttendanceService,
 };

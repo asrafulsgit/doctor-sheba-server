@@ -21,7 +21,18 @@ enum AppointmentStatus {
   INPROGRESS
   COMPLETED
   CANCELED
+  MISSED
 }
+
+enum AttendanceStatus {
+  NOT_STARTED
+  BOTH_PRESENT
+  DOCTOR_ABSENT
+  PATIENT_ABSENT
+  BOTH_ABSENT
+}
+
+
 
 enum PaymentStatus {
   PAID

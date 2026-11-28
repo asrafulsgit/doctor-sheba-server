@@ -11,10 +11,15 @@ model Appointment {
     videoCallingLink   String?
     videoCallingStatus videoCallingStatus @default(PENDING)
 
-    status        AppointmentStatus @default(SCHEDULED)
-    paymentStatus PaymentStatus     @default(UNPAID)
-    createdAt     DateTime          @default(now())
-    updatedAt     DateTime          @updatedAt
+    status           AppointmentStatus @default(SCHEDULED)
+    paymentStatus    PaymentStatus     @default(UNPAID)
+    attendanceStatus AttendanceStatus  @default(NOT_STARTED)
+
+    doctorJoinedAt  DateTime?
+    patientJoinedAt DateTime?
+    createdAt       DateTime  @default(now())
+    updatedAt       DateTime  @updatedAt
+
     payments      Payment[]
     prescriptions Prescription[]
     review        Review?
@@ -23,21 +28,21 @@ model Appointment {
 }
 
 model Payment {
-    id                    String        @id @default(uuid())
-    appointmentId         String
-    appointment           Appointment   @relation(fields: [appointmentId], references: [id])
-    amount                Float
-    transactionId         String        @unique
-    
-    stripeCheckoutSessionId String?     @unique
-    stripePaymentIntentId   String?     @unique
+    id            String      @id @default(uuid())
+    appointmentId String
+    appointment   Appointment @relation(fields: [appointmentId], references: [id])
+    amount        Float
+    transactionId String      @unique
+
+    stripeCheckoutSessionId String?   @unique
+    stripePaymentIntentId   String?   @unique
     checkoutSessionUrl      String?
     expiresAt               DateTime?
-    
-    status                PaymentStatus @default(UNPAID)
-    paymentGatewayData    Json?
-    createdAt             DateTime      @default(now())
-    updatedAt             DateTime      @updatedAt
+
+    status             PaymentStatus @default(UNPAID)
+    paymentGatewayData Json?
+    createdAt          DateTime      @default(now())
+    updatedAt          DateTime      @updatedAt
 
     refunds Refund[]
 
@@ -46,7 +51,7 @@ model Payment {
 
 model Refund {
     id        String  @id @default(uuid())
-    paymentId String @unique
+    paymentId String  @unique
     amount    Decimal @db.Decimal(10, 2)
 
     stripeRefundId String?      @unique
